@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[14]:
+# In[27]:
 
 
 import pandas as pd
@@ -16,11 +16,11 @@ from datetime import timedelta
 
 # Initiate station variables
 
-# In[34]:
+# In[28]:
 
 
 network = "VG"
-station = "PSAG"
+station = "TMKS"
 location = "00"
 channel = "EHZ"
 
@@ -31,11 +31,11 @@ nslc = "{}.{}.{}.{}".format(network, station, location, channel)
 # The `sds_directory` based on Seiscomp Data Structure (https://www.seiscomp.de/seiscomp3/doc/applications/slarchive/SDS.html)  
 # The example of the SDS Directory can be found inside `input` directory
 
-# In[3]:
+# In[29]:
 
 
 current_dir: str = os.getcwd()
-sds_directory: str = r"D:\Projects\dsar\input"
+sds_directory: str = r"D:\Data\SDS"
 client = Client(sds_directory)
 
 output_directory: str = os.path.join(current_dir, "output")
@@ -44,14 +44,14 @@ os.makedirs(output_directory, exist_ok=True)
 
 # Add start_date and end_date parameters
 
-# In[4]:
+# In[30]:
 
 
-start_date: str = "2017-12-01"
-end_date: str = "2017-12-03"
+start_date: str = "2017-10-01"
+end_date: str = "2018-07-31"
 
 
-# In[5]:
+# In[31]:
 
 
 bands: dict[str, list[float]] = {
@@ -64,7 +64,7 @@ resample_rule: str = '10min'
 
 # A method to generate list of date between two date periods. Returning `pd.DatetimeIndex`
 
-# In[6]:
+# In[32]:
 
 
 def get_dates(start: str, end: str) -> pd.DatetimeIndex:
@@ -73,7 +73,7 @@ def get_dates(start: str, end: str) -> pd.DatetimeIndex:
 
 # Stream processing to get `dsar` values
 
-# In[7]:
+# In[33]:
 
 
 def stream_processing(
@@ -94,7 +94,7 @@ def stream_processing(
 
 # Convert calculated `dsar` value into `pd.Series`
 
-# In[8]:
+# In[34]:
 
 
 def convert_stream_to_series(stream: Stream) -> pd.Series:
@@ -115,7 +115,7 @@ def convert_stream_to_series(stream: Stream) -> pd.Series:
 
 # Filling `streams` list variable
 
-# In[9]:
+# In[35]:
 
 
 def fill_streams(date: UTCDateTime, band_values=None)-> Stream:
@@ -153,7 +153,7 @@ def fill_streams(date: UTCDateTime, band_values=None)-> Stream:
 
 # Filling `series` variable and save it to csv 
 
-# In[10]:
+# In[36]:
 
 
 def fill_series_and_save_to_csv(stream: Stream, band, band_values=None)-> pd.Series:
@@ -180,7 +180,7 @@ def fill_series_and_save_to_csv(stream: Stream, band, band_values=None)-> pd.Ser
 
 # Combining CSV files per band and station
 
-# In[49]:
+# In[37]:
 
 
 def concatenate_csv(band: str, station=None)-> str:
@@ -208,7 +208,7 @@ def concatenate_csv(band: str, station=None)-> str:
     return combined_csv_files
 
 
-# In[12]:
+# In[38]:
 
 
 dates: list[UTCDateTime] = [UTCDateTime(date) for date in get_dates(start_date, end_date)]
@@ -216,7 +216,7 @@ streams: dict[str, Stream] = {}
 series: dict[str, dict[str, pd.Series]] = {}
 
 
-# In[51]:
+# In[39]:
 
 
 # We can optimize this using parallel computation
@@ -251,4 +251,34 @@ for band in bands.keys():
     print("⌚ Combined CSV files saved into: {}".format(combined_csv_file))
     print("")
 print("✅Finish!")
+
+
+# In[14]:
+
+
+# series.keys()
+
+
+# In[15]:
+
+
+# series['LF'].keys()
+
+
+# In[16]:
+
+
+# series['HF']['2017-12-01']
+
+
+# In[17]:
+
+
+# series['HF']['2017-12-01'].plot()
+
+
+# In[17]:
+
+
+
 
