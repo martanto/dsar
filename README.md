@@ -2,7 +2,7 @@
 
 ## How to Use
 
-1. All the seismic data must have SDS Directory as an input. See an example in [input directory](input).
+1. All the seismic data must have SDS Directory as an input. See an example in [input directory](input). Or you can check it here https://www.seiscomp.de/seiscomp3/doc/applications/slarchive/SDS.html
 2. Inside `main.py` or `main.ipynb` change those parameters:
 ```python
 network = "VG"
