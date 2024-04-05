@@ -4,7 +4,7 @@
 
 1. All the seismic data must have SDS Directory as an input. See an example in [input directory](input).
 2. Inside `main.py` or `main.ipynb` change those parameters:
-```bash
+```python
 network = "VG"
 station = "PSAG"
 location = "00"
