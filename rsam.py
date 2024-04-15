@@ -4,9 +4,9 @@ import numpy as np
 import glob
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from obspy import Trace, Stream, UTCDateTime
-from obspy.clients.filesystem.sds import Client
-from datetime import timedelta, datetime
+from obspy import Stream
+from datetime import datetime
+from utilities import trace_to_series, calculate_per_band
 
 
 class RSAM:
@@ -35,7 +35,7 @@ class RSAM:
                 tr = tr.filter('bandpass', freqmin=filters[0],
                                freqmax=filters[1], corners=corners)
 
-            series = self.trace_to_series(tr).resample(resample)
+            series = trace_to_series(tr).resample(resample)
             df['min'] = series.min()
             df['mean'] = series.mean()
             df['max'] = series.max()
@@ -44,7 +44,7 @@ class RSAM:
 
             if bands:
                 for band in bands:
-                    df[band] = RSAM.calculate_per_band(
+                    df[band] = calculate_per_band(
                         bands[band], tr, corners=corners).resample(resample).mean()
 
                 if 'LP' in bands and 'VT' in bands:
@@ -69,60 +69,7 @@ class RSAM:
             return csv_location
 
     @staticmethod
-    def fill_streams(client: Client, station: str, date: UTCDateTime) -> Stream:
-
-        _network, _station, _location, _channel = station.split('.')
-
-        stream = client.get_waveforms(
-            network=_network,
-            station=_station,
-            location=_location,
-            channel=_channel,
-            starttime=date,
-            endtime=date + timedelta(days=1)
-        )
-
-        # Check if stream is not empty (files not found)
-        # Return empty Stream if files are not found
-        if stream.count():
-            if date.strftime('%Y-%m-%d') != stream[0].stats.starttime.strftime('%Y-%m-%d'):
-                print("⛔ {} :: File(s) INVALID!".format(date.strftime('%Y-%m-%d')))
-                return Stream()
-            return stream
-        else:
-            print("⚠️ {} :: File(s) not found!".format(date.strftime('%Y-%m-%d')))
-            return Stream()
-
-    @staticmethod
-    def calculate_per_band(frequencies: list[float], trace: Trace, corners=4) -> pd.Series:
-        trace = trace.filter('bandpass', freqmin=frequencies[0],
-                             freqmax=frequencies[-1], corners=corners)
-        return RSAM.trace_to_series(trace)
-
-    @staticmethod
-    def trace_to_series(trace: Trace) -> pd.Series:
-        index_time = pd.date_range(
-            start=trace.stats.starttime.datetime,
-            periods=trace.stats.npts,
-            freq="{}ms".format(trace.stats.delta * 1000)
-        )
-
-        _series = pd.Series(
-            data=np.abs(trace.data),
-            index=index_time,
-            name='amplitude',
-            dtype=trace.data.dtype)
-
-        _series.index.name = 'datetime'
-
-        return _series
-
-    @staticmethod
-    def trace_to_dataframe(trace: Trace) -> pd.DataFrame:
-        return RSAM.trace_to_series(trace).to_frame()
-
-    @staticmethod
-    def concatenate_csv(station: str, rsam_directory: str, resample_rule: str) -> str:
+    def concatenate_csv(rsam_directory: str, station: str, resample_rule: str) -> str:
         df_list: list = []
 
         csv_files: list[str] = glob.glob(os.path.join(
@@ -138,25 +85,28 @@ class RSAM:
         big_df = big_df.reset_index().drop_duplicates(keep='last')
         # big_df = big_df.loc[~big_df.index.duplicated(), :]
 
-        combined_csv_files: str = os.path.join(rsam_directory, station, "combined_{}.csv".format(station))
+        combined_csv_files: str = os.path.join(
+            rsam_directory, station, "combined_{}_{}.csv".format(resample_rule, station))
 
-        columns = ['datetime', 'min', 'mean', 'max', 'median', 'rms', 'VLP', 'LP', 'VT', 'f_ratio']
+        columns = ['datetime', 'min', 'mean', 'max',
+                   'median', 'rms', 'VLP', 'LP', 'VT', 'f_ratio']
 
         big_df.to_csv(combined_csv_files, index=False, columns=columns)
         return combined_csv_files
 
     @staticmethod
-    def plot(stations: list[str], rsam_directory: str,
+    def plot(rsam_directory: str, stations: list[str], resample_rule: str,
              axvspans: list[list[str]] = None, axvlines: list[str] = None,
-             interval_day: int = 14) -> plt.Figure:
+             interval_day: int = 14, title: str = None) -> plt.Figure:
 
         fig, axs = plt.subplots(nrows=len(stations), ncols=1, figsize=(12, 3 * len(stations)),
                                 layout="constrained", sharex=True)
 
         for index_key, _station in enumerate(stations):
 
-            df = pd.read_csv(os.path.join(rsam_directory, _station, 'combined_{}.csv'.format(_station)),
-                             index_col='datetime', parse_dates=True)
+            df = pd.read_csv(os.path.join(
+                rsam_directory, _station, 'combined_{}_{}.csv'.format(resample_rule, _station)),
+                index_col='datetime', parse_dates=True)
 
             df['VT_24h'] = df['VT'].rolling('24h', center=True).median()
 
@@ -175,7 +125,7 @@ class RSAM:
             axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
 
             axs[index_key].annotate(
-                text=_station,
+                text='RSAM '+_station if title is None else title,
                 xy=(0.01, 0.92),
                 xycoords='axes fraction',
                 fontsize='8',
@@ -204,3 +154,8 @@ class RSAM:
                 label.set(rotation=30, horizontalalignment='right')
 
         return fig
+
+    @staticmethod
+    def get_dataframe_from_rsam_csv(rsam_directory: str, station: str, resample_rule: str) -> pd.DataFrame:
+        rsam_csv_combined = os.path.join(rsam_directory, station, 'combined_{}_{}.csv'.format(resample_rule, station))
+        return pd.read_csv(rsam_csv_combined, index_col='datetime', parse_dates=True)

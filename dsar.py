@@ -1,174 +1,110 @@
-#!/usr/bin/env python
-# coding: utf-8
-
-# In[137]:
-
-
 import pandas as pd
 import os
-import matplotlib.pyplot as plt
-from statsmodels.tsa.filters.hp_filter import hpfilter
-from datetime import datetime
+import glob
+from obspy import Trace, Stream
+from utilities import trace_to_series
 
 
-# In[138]:
+class DSAR:
+    """Return DSAR per date"""
 
+    def __init__(self, stream: Stream = None, bands: dict[str, list[float]] = None,
+                 resample: str = '10m', filters: list[float] = None, corners=4):
 
-network = "VG"
-station = "TMKS"
-location = "00"
-channel = "EHZ"
+        if bands is None:
+            bands: dict[str, list[float]] = {
+                'LF': [0.1, 4.5, 8.0],
+                'HF': [0.1, 8.0, 16.0],
+            }
 
-nslc = "{}.{}.{}.{}".format(network, station, location, channel)
+        self.stream: Stream = stream
+        self.stream_processed: Stream = Stream()
+        self.resample = resample
+        self.bands: dict[str, list[float]] = bands
+        self.series: dict[str, dict[str, pd.Series]] = {}
+        self.dfs: dict[str, pd.DataFrame] = {}
 
+        for trace in self.stream:
+            self.series[trace.id]: dict[str, pd.Series] = {}
+            self.dfs[trace.id]: pd.DataFrame = pd.DataFrame()
 
-# In[139]:
+        for band_id, band_values in bands.items():
+            print(f'⌚ Processing {band_id} band')
+            """Returned stream_processed['HF'] and stream_processed['LF']'"""
+            self.stream_processed: Stream = self.processing(stream.copy(), band_values)
 
+            """Returned series[nslc]['HF'] and series[nslc]['LF']"""
+            for trace in self.stream_processed:
+                series = trace_to_series(trace).resample(resample).median()
+                self.series[trace.id][band_id] = series
+                self.dfs[trace.id][band_id]: pd.DataFrame = series.to_frame().sort_index()
 
-bands: dict[str, list[float]] = {
-    'HF' : [0.1, 8.0, 16.0],
-    'LF' : [0.1, 4.5, 8.0],
-}
+        self.calculate()
 
+    def calculate(self, dfs: dict[str, pd.DataFrame] = None) -> None:
 
-# In[143]:
+        if dfs is None:
+            dfs: dict[str, pd.DataFrame] = self.dfs
 
+        for station, df in dfs.items():
+            default_name: str = 'DSAR_{}'.format(self.resample)
 
-current_dir: str = os.getcwd()
-input_directory: str = os.path.join(current_dir, "output")
-output_directory: str = os.path.join(current_dir, "output", "dsar")
-os.makedirs(output_directory, exist_ok=True)
+            self.dfs[station][default_name] = (df['LF']/df['HF'])
+            self.dfs[station]['DSAR_6h'] = df[default_name].rolling('6h', center=True).median()
+            self.dfs[station]['DSAR_24h'] = df[default_name].rolling('24h', center=True).median()
 
-combined_HF_csv: str = os.path.join(input_directory, "HF", 'combined_{}Hz_{}.csv'.format('-'.join(map(str,bands['HF'])), nslc))
-combined_LF_csv: str = os.path.join(input_directory, "LF", 'combined_{}Hz_{}.csv'.format('-'.join(map(str,bands['LF'])), nslc))
+            self.dfs[station] = self.dfs[station].dropna()
+            self.dfs[station] = self.dfs[station].loc[~self.dfs[station].index.duplicated(), :]
+            self.dfs[station] = self.dfs[station].interpolate('time').interpolate()
 
+    def processing(self, stream: Stream, band_frequencies: list[float]) -> Stream:
+        stream.merge(fill_value=0)
+        stream.detrend('demean')
+        stream.filter('highpass', freq=band_frequencies[0])
+        stream.integrate()
+        stream.filter('highpass', freq=band_frequencies[1])
+        stream.filter('lowpass', freq=band_frequencies[2])
+        return stream
 
-# In[144]:
+    def save(self, output_directory: str = None):
 
+        if output_directory is None:
+            output_directory: str = os.path.join(os.getcwd(), 'output', 'dsar')
+            os.makedirs(output_directory, exist_ok=True)
 
-HF = pd.read_csv(combined_HF_csv, names=["datetime", "values"], 
-                 index_col='datetime', parse_dates=True)
-LF = pd.read_csv(combined_LF_csv, names=["datetime", "values"], 
-                 index_col='datetime', parse_dates=True)
+        for station, df in self.dfs.items():
+            date: str = str(df.first_valid_index()).split(' ')[0]
 
+            csv_directory: str = os.path.join(output_directory, station, self.resample)
+            os.makedirs(csv_directory, exist_ok=True)
 
-# In[145]:
+            csv_file: str = os.path.join(csv_directory, f'{date}_{station}.csv')
 
+            print("💾 Saving to {}".format(csv_file))
+            df.to_csv(csv_file, index=True)
 
-HF
+    @staticmethod
+    def concatenate_csv(dsar_directory: str, station: str, resample: str) -> str:
+        df_list: list = []
 
+        csv_files: list[str] = glob.glob(os.path.join(
+            dsar_directory, station, resample, "*.csv"))
 
-# In[146]:
+        for csv in csv_files:
+            df = pd.read_csv(csv)
+            df_list.append(df)
 
+        big_df = pd.concat(df_list, ignore_index=True)
+        big_df = big_df.dropna()
+        big_df = big_df.sort_values(by=['datetime'])
+        big_df = big_df.reset_index().drop_duplicates(keep='last')
 
-LF
+        combined_csv_files: str = os.path.join(
+            dsar_directory, station, "combined_{}_{}.csv".format(resample, station))
 
+        columns = ['datetime', f'DSAR_{resample}', 'DSAR_6h', 'DSAR_24h']
 
-# In[147]:
-
-
-df = pd.DataFrame()
-
-
-# In[148]:
-
-
-df['LF'] = LF['values']
-df['HF'] = HF['values']
-df['DSAR'] = (LF['values']/HF['values'])
-df['DSAR_365'] = (LF['values']/HF['values']).rolling(6).median()
-
-
-# In[149]:
-
-
-df
-
-
-# In[150]:
-
-
-df = df.dropna()
-
-
-# In[151]:
-
-
-df.loc[~df.index.duplicated(), :]
-
-
-# In[152]:
-
-
-# df = df.apply(lambda col: col.drop_duplicates())
-
-
-# In[153]:
-
-
-df = df.interpolate('time').interpolate()
-
-
-# In[154]:
-
-
-df
-
-
-# In[155]:
-
-
-filename = os.path.join(output_directory, "DSAR_{}.csv".format(nslc))
-df.to_csv(filename)
-
-
-# In[157]:
-
-
-import matplotlib.dates as mdates
-
-# HP filter documentation https://www.statsmodels.org/stable/generated/statsmodels.tsa.filters.hp_filter.hpfilter.html
-cycle,trend = hpfilter(df.DSAR, 1000000)
-
-fig, axs = plt.subplots(figsize=(12, 5), layout="constrained")
-scatter = axs.scatter(df.index, df.DSAR, c= 'k', alpha=0.3, s=10, label='{} (10 minutes)'.format(nslc))
-smoothed_using_HP_filter = axs.plot(df.index, trend, c='red', label='{} smoothed (HP Filter)'.format(nslc), alpha=1)
-
-axs.legend(loc=2)
-axs.set_ylabel('DSAR')
-axs.set_xlabel('Date')
-axs.xaxis.set_major_locator(mdates.DayLocator(interval=7))
-axs.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-axs.set_ylim(0,6.5)
-
-# Agung Eruption
-continous_eruptions = [
-    ['2017-11-21', '2017-11-29'],
-    ['2018-06-27', '2018-07-16'],
-    ['2018-07-24', '2018-07-27'],
-]
-
-for continous in continous_eruptions:
-    axs.axvspan(continous[0], continous[1], alpha=0.4, color='orange')
-
-single_eruptions = [
-    '2018-05-29',
-    '2018-06-10',
-    '2018-06-13',
-    '2018-06-15',
-    '2018-07-21',
-    '2018-07-24',
-]
-
-for date in single_eruptions:
-    axs.axvline(datetime.strptime(date, '%Y-%m-%d'), alpha=0.4, color='orange')
-
-for label in axs.get_xticklabels(which='major'):
-    label.set(rotation=30, horizontalalignment='right')
-
-
-# In[ ]:
-
-
+        big_df.to_csv(combined_csv_files, index=False, columns=columns)
+        return combined_csv_files
 
 

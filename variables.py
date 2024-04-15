@@ -24,12 +24,12 @@ bands: dict[str, list[float]] = {
 sds_directory: str = r"D:\Data\SDS"
 client = Client(sds_directory)
 
-# Resample parameter
+# Resample parameter to use in DSAR and RSAM
 resample_rule: str = '10min'
 
 # Defining start and end datae
 start_date: str = "2017-10-01"
-end_date: str = "2018-07-31"
+end_date: str = "2017-10-21"
 
 
 # List of date from start to end with 1-day period
@@ -47,6 +47,10 @@ current_dir: str = os.getcwd()
 output_directory: str = os.path.join(current_dir, "output")
 os.makedirs(output_directory, exist_ok=True)
 
+# Get DSAR output directory and make sure it exists
+dsar_directory: str = os.path.join(output_directory, "dsar")
+os.makedirs(dsar_directory, exist_ok=True)
+
 # Get RSAM output directory and make sure it exists
 rsam_directory: str = os.path.join(output_directory, "rsam")
 os.makedirs(rsam_directory, exist_ok=True)
@@ -55,8 +59,38 @@ os.makedirs(rsam_directory, exist_ok=True)
 figures_directory: str = os.path.join(output_directory, "figures")
 os.makedirs(figures_directory, exist_ok=True)
 
+# Get MAGMA output directory
+plot_from_magma: bool = True
+magma_directory: str = os.path.join(output_directory, "magma")
+os.makedirs(magma_directory, exist_ok=True)
+
+# MAGMA CSV Event and dataframe
+magma_csv: str = 'magma_AGU_2017-10-01-2018-07-31.csv'
+magma_df = pd.read_csv(os.path.join(magma_directory, magma_csv),
+                       index_col='date', parse_dates=True) if plot_from_magma else pd.DataFrame
+
+# DSAR and RSAM dataframes
+DSAR_dfs: dict[str, pd.DataFrame] = {}
+RSAM_dfs: dict[str, pd.DataFrame] = {}
+
+for station in stations:
+    DSAR_csv_combined: str = os.path.join(dsar_directory, 'DSAR_{}.csv'.format(station))
+    RSAM_csv_combined: str = os.path.join(rsam_directory, station,
+                                          'combined_{}_{}.csv'.format(resample_rule, station))
+
+    DSAR_dfs[station]: pd.DataFrame = pd.DataFrame()
+    RSAM_dfs[station]: pd.DataFrame = pd.DataFrame()
+
+    if os.path.exists(DSAR_csv_combined):
+        DSAR_dfs[station]: pd.DataFrame = pd.read_csv(DSAR_csv_combined,
+                              index_col='datetime', parse_dates=True)
+
+    if os.path.exists(RSAM_csv_combined):
+        RSAM_dfs[station]: pd.DataFrame = pd.read_csv(RSAM_csv_combined, index_col='datetime', parse_dates=True)
+
 # Dict of stream with date as a key and Stream object as values. Example: streams['2017-10-01'][Stream, Stream, ...]
 streams: dict[str, Stream] = {}
+series: dict[str, dict[str, pd.Series]] = {}
 
 # Dict of CSV files with station name as a key. Example: csv_files['VG.PSAG.00.EHZ'][....]
 csv_files: dict[str, list[str]] = {}
