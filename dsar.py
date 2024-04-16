@@ -1,8 +1,10 @@
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 import os
 import glob
-from obspy import Trace, Stream
-from utilities import trace_to_series
+from obspy import Stream
+from utilities import trace_to_series, plot_eruptions, get_combined_csv
 
 
 class DSAR:
@@ -31,7 +33,7 @@ class DSAR:
         for band_id, band_values in bands.items():
             print(f'⌚ Processing {band_id} band')
             """Returned stream_processed['HF'] and stream_processed['LF']'"""
-            self.stream_processed: Stream = self.processing(stream.copy(), band_values)
+            self.stream_processed: Stream = DSAR.processing(stream.copy(), band_values)
 
             """Returned series[nslc]['HF'] and series[nslc]['LF']"""
             for trace in self.stream_processed:
@@ -49,7 +51,7 @@ class DSAR:
         for station, df in dfs.items():
             default_name: str = 'DSAR_{}'.format(self.resample)
 
-            self.dfs[station][default_name] = (df['LF']/df['HF'])
+            self.dfs[station][default_name] = (df['LF'] / df['HF'])
             self.dfs[station]['DSAR_6h'] = df[default_name].rolling('6h', center=True).median()
             self.dfs[station]['DSAR_24h'] = df[default_name].rolling('24h', center=True).median()
 
@@ -57,7 +59,8 @@ class DSAR:
             self.dfs[station] = self.dfs[station].loc[~self.dfs[station].index.duplicated(), :]
             self.dfs[station] = self.dfs[station].interpolate('time').interpolate()
 
-    def processing(self, stream: Stream, band_frequencies: list[float]) -> Stream:
+    @staticmethod
+    def processing(stream: Stream, band_frequencies: list[float]) -> Stream:
         stream.merge(fill_value=0)
         stream.detrend('demean')
         stream.filter('highpass', freq=band_frequencies[0])
@@ -107,4 +110,49 @@ class DSAR:
         big_df.to_csv(combined_csv_files, index=False, columns=columns)
         return combined_csv_files
 
+    @staticmethod
+    def plot(dsar_directory: str, stations: list[str], resample: str,
+             interval_day: int = 14, title: str = None,
+             axvspans: list[list[str]] = None, axvlines: list[str] = None) -> plt.Figure:
 
+        fig, axs = plt.subplots(nrows=len(stations), ncols=1, figsize=(12, 3 * len(stations)),
+                                layout="constrained", sharex=True)
+
+        for index_key, _station in enumerate(stations):
+            df = get_combined_csv(dsar_directory, _station, resample)
+
+            axs[index_key].scatter(df.index, df['DSAR_{}'.format(resample)],
+                                   c='k', alpha=0.3, s=10, label='10min')
+
+            axs[index_key].plot(df.index, df['DSAR_24h'], c='red', label='24h', alpha=1)
+            axs[index_key].set_ylabel('DSAR')
+
+            if index_key == (len(stations) - 1):
+                axs[index_key].set_xlabel('Date')
+
+            axs[index_key].xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
+            axs[index_key].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+
+            axs[index_key].set_ylim(0, 6.5)
+            axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
+
+            axs[index_key].annotate(
+                text='DSAR - ' + _station if title is None else title,
+                xy=(0.01, 0.92),
+                xycoords='axes fraction',
+                fontsize='8',
+                bbox=dict(facecolor='white', alpha=0.5)
+            )
+
+            # Plotting eruptions
+            if (axvspans is not None) or (axvlines is not None):
+                plot_eruptions(axs[index_key], axvspans, axvlines)
+
+            # Add legend
+            axs[index_key].legend(loc='upper right', fontsize='8', ncol=4)
+
+            # Rotate x label
+            for label in axs[index_key].get_xticklabels(which='major'):
+                label.set(rotation=30, horizontalalignment='right')
+
+        return fig

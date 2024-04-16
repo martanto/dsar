@@ -5,8 +5,7 @@ import glob
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from obspy import Stream
-from datetime import datetime
-from utilities import trace_to_series, calculate_per_band
+from utilities import trace_to_series, calculate_per_band, plot_eruptions, get_combined_csv
 
 
 class RSAM:
@@ -83,7 +82,6 @@ class RSAM:
         big_df = big_df.dropna()
         big_df = big_df.sort_values(by=['datetime'])
         big_df = big_df.reset_index().drop_duplicates(keep='last')
-        # big_df = big_df.loc[~big_df.index.duplicated(), :]
 
         combined_csv_files: str = os.path.join(
             rsam_directory, station, "combined_{}_{}.csv".format(resample_rule, station))
@@ -95,7 +93,7 @@ class RSAM:
         return combined_csv_files
 
     @staticmethod
-    def plot(rsam_directory: str, stations: list[str], resample_rule: str,
+    def plot(rsam_directory: str, stations: list[str], resample: str,
              axvspans: list[list[str]] = None, axvlines: list[str] = None,
              interval_day: int = 14, title: str = None) -> plt.Figure:
 
@@ -103,10 +101,7 @@ class RSAM:
                                 layout="constrained", sharex=True)
 
         for index_key, _station in enumerate(stations):
-
-            df = pd.read_csv(os.path.join(
-                rsam_directory, _station, 'combined_{}_{}.csv'.format(resample_rule, _station)),
-                index_col='datetime', parse_dates=True)
+            df = get_combined_csv(rsam_directory, _station, resample)
 
             df['VT_24h'] = df['VT'].rolling('24h', center=True).median()
 
@@ -132,20 +127,10 @@ class RSAM:
                 bbox=dict(facecolor='white', alpha=0.5)
             )
 
-            # Plotting continuous eruptions
-            if axvspans is not None:
-                for key, continuous in enumerate(axvspans):
-                    # continuous[0] = start date of eruption
-                    # continuous[1] = end date of eruption
-                    axs[index_key].axvspan(datetime.strptime(continuous[0], '%Y-%m-%d'),
-                                           datetime.strptime(continuous[1], '%Y-%m-%d'),
-                                           alpha=0.4, color='orange', label="_" * key + 'Continuous Eruption')
+            # Plotting eruptions
+            if (axvspans is not None) or (axvlines is not None):
+                plot_eruptions(axs[index_key], axvspans, axvlines)
 
-            # Plotting single eruptions
-            if axvlines is not None:
-                for key, date in enumerate(axvlines):
-                    axs[index_key].axvline(datetime.strptime(date, '%Y-%m-%d'),
-                                           alpha=0.4, color='orange', label="_" * key + 'Single Eruption')
             # Add legend
             axs[index_key].legend(loc='upper right', fontsize='8', ncol=4)
 

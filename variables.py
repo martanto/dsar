@@ -28,8 +28,8 @@ client = Client(sds_directory)
 resample_rule: str = '10min'
 
 # Defining start and end datae
-start_date: str = "2017-10-01"
-end_date: str = "2017-10-21"
+start_date: str = "2017-10-17"
+end_date: str = "2018-07-31"
 
 
 # List of date from start to end with 1-day period

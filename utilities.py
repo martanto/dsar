@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import os
 from obspy import Trace, Stream, UTCDateTime
 from obspy.clients.filesystem.sds import Client
 from datetime import timedelta
+from datetime import datetime
 
 
 def fill_streams(client: Client, station: str, date: UTCDateTime) -> Stream:
@@ -57,3 +59,39 @@ def calculate_per_band(frequencies: list[float], trace: Trace, corners=4) -> pd.
     trace = trace.filter('bandpass', freqmin=frequencies[0],
                          freqmax=frequencies[-1], corners=corners)
     return trace_to_series(trace)
+
+
+def plot_continuous_eruption(axes, axvspans: list[list[str]]):
+    for key, continuous in enumerate(axvspans):
+        # continuous[0] = start date of eruption
+        # continuous[1] = end date of eruption
+        axes.axvspan(datetime.strptime(continuous[0], '%Y-%m-%d'),
+                     datetime.strptime(continuous[1], '%Y-%m-%d'),
+                     alpha=0.4, color='orange', label="_" * key + 'Continuous Eruption')
+
+    return axes
+
+
+def plot_single_eruption(axes, axvlines: list[str]):
+    for key, date in enumerate(axvlines):
+        axes.axvline(datetime.strptime(date, '%Y-%m-%d'),
+                               alpha=0.4, color='orange', label="_" * key + 'Single Eruption')
+    return axes
+
+
+def plot_eruptions(axes, axvspans: list[list[str]] = None, axvlines: list[str] = None):
+    if axvspans is not None:
+        plot_continuous_eruption(axes, axvspans)
+
+    if axvlines is not None:
+        plot_single_eruption(axes, axvlines)
+
+    return axes
+
+
+def get_combined_csv(directory: str, station: str, resample: str) -> pd.DataFrame:
+    df = pd.read_csv(os.path.join(
+        directory, station, 'combined_{}_{}.csv'.format(resample, station)),
+        index_col='datetime', parse_dates=True)
+
+    return df
