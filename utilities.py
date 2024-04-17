@@ -23,9 +23,10 @@ def fill_streams(client: Client, station: str, date: UTCDateTime) -> Stream:
     # Check if stream is not empty (files not found)
     # Return empty Stream if files are not found
     if stream.count():
-        if date.strftime('%Y-%m-%d') != stream[0].stats.starttime.strftime('%Y-%m-%d'):
-            print("⛔ {} :: File(s) for date {} INVALID!".format(station, date.strftime('%Y-%m-%d')))
-            return Stream()
+        stream_date: str = stream[0].stats.starttime.strftime('%Y-%m-%d')
+        if date.strftime('%Y-%m-%d') != stream_date:
+            print("⛔ {} :: File(s) for date {} vs {} INVALID!".format(station, date.strftime('%Y-%m-%d'), stream_date))
+            return stream
         print('ℹ️ {} :: File(s) for date {} OK!'.format(station, date.strftime('%Y-%m-%d')))
         return stream
     else:

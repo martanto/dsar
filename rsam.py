@@ -76,7 +76,8 @@ class RSAM:
 
         for csv in csv_files:
             df = pd.read_csv(csv)
-            df_list.append(df)
+            if not df.empty:
+                df_list.append(df)
 
         big_df = pd.concat(df_list, ignore_index=True)
         big_df = big_df.dropna()
@@ -91,6 +92,48 @@ class RSAM:
 
         big_df.to_csv(combined_csv_files, index=False, columns=columns)
         return combined_csv_files
+
+    @staticmethod
+    def plot_single_graph(rsam_directory: str, station: str, resample: str,
+             axvspans: list[list[str]] = None, axvlines: list[str] = None,
+             interval_day: int = 14, title: str = None):
+
+        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3),
+                                layout="constrained")
+
+        df = get_combined_csv(rsam_directory, station, resample)
+        df['VT_24h'] = df['VT'].rolling('24h', center=True).median()
+
+        axs.scatter(df.index, df.VT, c='k', alpha=0.3, s=10, label='10 minutes')
+        axs.plot(df.index, df.VT_24h, c='red', label='24h', alpha=1)
+
+        axs.set_ylabel('Amplitude (count)')
+
+        axs.set_xlabel('Date')
+
+        axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
+        axs.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        axs.set_ylim(0, 0.00012)
+        axs.set_xlim(df.first_valid_index(), df.last_valid_index())
+
+        axs.annotate(
+            text='RSAM ' + station if title is None else title,
+            xy=(0.01, 0.92),
+            xycoords='axes fraction',
+            fontsize='8',
+            bbox=dict(facecolor='white', alpha=0.5)
+        )
+
+        # Plotting eruptions
+        if (axvspans is not None) or (axvlines is not None):
+            plot_eruptions(axs, axvspans, axvlines)
+
+        # Add legend
+        axs.legend(loc='upper right', fontsize='8', ncol=4)
+
+        # Rotate x label
+        for label in axs.get_xticklabels(which='major'):
+            label.set(rotation=30, horizontalalignment='right')
 
     @staticmethod
     def plot(rsam_directory: str, stations: list[str], resample: str,

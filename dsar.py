@@ -95,7 +95,8 @@ class DSAR:
 
         for csv in csv_files:
             df = pd.read_csv(csv)
-            df_list.append(df)
+            if not df.empty:
+                df_list.append(df)
 
         big_df = pd.concat(df_list, ignore_index=True)
         big_df = big_df.dropna()

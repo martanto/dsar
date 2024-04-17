@@ -8,8 +8,9 @@ from obspy.clients.filesystem.sds import Client
 # DEFINING VARIABLES
 # List of station
 stations: list[str] = [
-    'VG.PSAG.00.EHZ',
-    'VG.TMKS.00.EHZ',
+    # 'VG.PSAG.00.EHZ',
+    # 'VG.TMKS.00.EHZ',
+    'VG.RUA3.00.EHZ',
 ]
 
 # Named band frequencies
@@ -21,15 +22,15 @@ bands: dict[str, list[float]] = {
 }
 
 # SDS Client
-sds_directory: str = r"D:\Data\SDS"
+sds_directory: str = r'D:\\Data\\SDS'
 client = Client(sds_directory)
 
 # Resample parameter to use in DSAR and RSAM
 resample_rule: str = '10min'
 
 # Defining start and end datae
-start_date: str = "2017-10-17"
-end_date: str = "2018-07-31"
+start_date: str = "2023-01-01"
+end_date: str = "2024-04-14"
 
 
 # List of date from start to end with 1-day period
@@ -65,7 +66,7 @@ magma_directory: str = os.path.join(output_directory, "magma")
 os.makedirs(magma_directory, exist_ok=True)
 
 # MAGMA CSV Event and dataframe
-magma_csv: str = 'magma_AGU_2017-10-01-2018-07-31.csv'
+magma_csv: str = 'magma_RUA_2024-01-01_2024-04-14.csv'
 magma_df = pd.read_csv(os.path.join(magma_directory, magma_csv),
                        index_col='date', parse_dates=True) if plot_from_magma else pd.DataFrame
 
@@ -99,9 +100,10 @@ csv_files: dict[str, list[str]] = {}
 # These variables used to Plot the RSAM result
 # start date, end date of eruption
 continuous_eruptions: list[list[str]] = [
-    ['2017-11-21', '2017-11-29'],
-    ['2018-06-27', '2018-07-16'],
-    ['2018-07-24', '2018-07-27'],
+    # ['2017-11-21', '2017-11-29'],
+    # ['2018-06-27', '2018-07-16'],
+    # ['2018-07-24', '2018-07-27'],
+    ['2024-04-14', '2024-04-15'],
 ]
 single_eruptions: list[str] = [
     '2017-11-25',
