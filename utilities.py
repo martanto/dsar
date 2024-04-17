@@ -66,9 +66,8 @@ def plot_continuous_eruption(axes, axvspans: list[list[str]]):
     for key, continuous in enumerate(axvspans):
         # continuous[0] = start date of eruption
         # continuous[1] = end date of eruption
-        axes.axvspan(datetime.strptime(continuous[0], '%Y-%m-%d'),
-                     datetime.strptime(continuous[1], '%Y-%m-%d'),
-                     alpha=0.4, color='orange', label="_" * key + 'Continuous Eruption')
+        axes.axvspan(continuous[0], continuous[1], alpha=0.4,
+                     color='orange', label="_" * key + 'Continuous Eruption')
 
     return axes
 

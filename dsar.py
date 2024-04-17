@@ -10,8 +10,7 @@ from utilities import trace_to_series, plot_eruptions, get_combined_csv
 class DSAR:
     """Return DSAR per date"""
 
-    def __init__(self, stream: Stream = None, bands: dict[str, list[float]] = None,
-                 resample: str = '10m', filters: list[float] = None, corners=4):
+    def __init__(self, stream: Stream = None, bands: dict[str, list[float]] = None, resample: str = '10m'):
 
         if bands is None:
             bands: dict[str, list[float]] = {
@@ -69,7 +68,7 @@ class DSAR:
         stream.filter('lowpass', freq=band_frequencies[2])
         return stream
 
-    def save(self, output_directory: str = None):
+    def save(self, output_directory: str = None) -> str:
 
         if output_directory is None:
             output_directory: str = os.path.join(os.getcwd(), 'output', 'dsar')
@@ -81,10 +80,12 @@ class DSAR:
             csv_directory: str = os.path.join(output_directory, station, self.resample)
             os.makedirs(csv_directory, exist_ok=True)
 
-            csv_file: str = os.path.join(csv_directory, f'{date}_{station}.csv')
+            csv_file: str = os.path.join(csv_directory, f'{station}_{date}.csv')
 
             print("💾 Saving to {}".format(csv_file))
             df.to_csv(csv_file, index=True)
+
+            return csv_file
 
     @staticmethod
     def concatenate_csv(dsar_directory: str, station: str, resample: str) -> str:
@@ -109,11 +110,60 @@ class DSAR:
         columns = ['datetime', f'DSAR_{resample}', 'DSAR_6h', 'DSAR_24h']
 
         big_df.to_csv(combined_csv_files, index=False, columns=columns)
+        print(f'✅ Saved to {combined_csv_files}')
         return combined_csv_files
 
     @staticmethod
+    def plot_single_graph(dsar_directory: str, station: str, resample: str,
+                          interval_day: int = 14, y_min: float = 0, y_max: float = 6.5, title: str = None,
+                          axvspans: list[list[str]] = None, axvlines: list[str] = None) -> plt.Figure:
+
+        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3),
+                                layout="constrained")
+
+        df = get_combined_csv(dsar_directory, station, resample)
+
+        axs.scatter(df.index, df['DSAR_{}'.format(resample)],
+                    c='k', alpha=0.3, s=10, label='10min')
+
+        # df['std'] = df['DSAR_{}'.format(resample)].rolling('24h', center=True).mean()
+        # axs.plot(df.index, df['std'], c='yellow', label='24h', alpha=1)
+
+        axs.plot(df.index, df['DSAR_24h'], c='red', label='24h', alpha=1)
+        axs.set_ylabel('DSAR')
+
+        # axs.set_xlabel('Date')
+
+        axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
+        # axs.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+
+        axs.set_ylim(y_min, y_max)
+        axs.set_xlim(df.first_valid_index(), df.last_valid_index())
+
+        axs.annotate(
+            text='DSAR - ' + station if title is None else title,
+            xy=(0.01, 0.92),
+            xycoords='axes fraction',
+            fontsize='8',
+            bbox=dict(facecolor='white', alpha=0.5)
+        )
+
+        # Plotting eruptions
+        if (axvspans is not None) or (axvlines is not None):
+            plot_eruptions(axs, axvspans, axvlines)
+
+        # Add legend
+        axs.legend(loc='upper right', fontsize='8', ncol=4)
+
+        # Rotate x label
+        for label in axs.get_xticklabels(which='major'):
+            label.set(rotation=30, horizontalalignment='right')
+
+        return fig
+
+    @staticmethod
     def plot(dsar_directory: str, stations: list[str], resample: str,
-             interval_day: int = 14, title: str = None,
+             interval_day: int = 14, y_min: float = 0, y_max: float = 6.5, title: str = None,
              axvspans: list[list[str]] = None, axvlines: list[str] = None) -> plt.Figure:
 
         fig, axs = plt.subplots(nrows=len(stations), ncols=1, figsize=(12, 3 * len(stations)),
@@ -134,7 +184,7 @@ class DSAR:
             axs[index_key].xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
             axs[index_key].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
 
-            axs[index_key].set_ylim(0, 6.5)
+            axs[index_key].set_ylim(y_min, y_max)
             axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
 
             axs[index_key].annotate(
