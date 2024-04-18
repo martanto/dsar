@@ -92,6 +92,6 @@ def plot_eruptions(axes, axvspans: list[list[str]] = None, axvlines: list[str] =
 def get_combined_csv(directory: str, station: str, resample: str) -> pd.DataFrame:
     df = pd.read_csv(os.path.join(
         directory, station, 'combined_{}_{}.csv'.format(resample, station)),
-        index_col='datetime', parse_dates=True)
+        index_col='datetime', parse_dates=True, date_format = '%Y-%m-%d %H:%M:%S')
 
     return df

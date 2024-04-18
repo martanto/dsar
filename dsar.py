@@ -75,17 +75,21 @@ class DSAR:
             os.makedirs(output_directory, exist_ok=True)
 
         for station, df in self.dfs.items():
-            date: str = str(df.first_valid_index()).split(' ')[0]
 
-            csv_directory: str = os.path.join(output_directory, station, self.resample)
-            os.makedirs(csv_directory, exist_ok=True)
+            if df.count() > 1:
+                date: str = str(df.first_valid_index()).split(' ')[0]
 
-            csv_file: str = os.path.join(csv_directory, f'{station}_{date}.csv')
+                csv_directory: str = os.path.join(output_directory, station, self.resample)
+                os.makedirs(csv_directory, exist_ok=True)
 
-            print("💾 Saving to {}".format(csv_file))
-            df.to_csv(csv_file, index=True)
+                csv_file: str = os.path.join(csv_directory, f'{station}_{date}.csv')
 
-            return csv_file
+                print("💾 Saving to {}".format(csv_file))
+                df.to_csv(csv_file, index=True)
+
+                return csv_file
+
+            return f'⚠️💾 Not saved. Not enough data for {station}'
 
     @staticmethod
     def concatenate_csv(dsar_directory: str, station: str, resample: str) -> str:

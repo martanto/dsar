@@ -58,19 +58,24 @@ class RSAM:
             os.makedirs(output_directory, exist_ok=True)
 
         for station, df in self.dataframes.items():
-            date = str(df.first_valid_index()).split(' ')[0]
 
-            csv_dir: str = os.path.join(output_directory, station, self.resample)
-            os.makedirs(csv_dir, exist_ok=True)
+            if df.count() > 1:
 
-            csv_file = os.path.join(csv_dir, f'{station}_{date}.csv')
+                date = str(df.first_valid_index()).split(' ')[0]
 
-            # Saving to CSV
-            print("💾 Saving to {}".format(csv_file))
-            df.to_csv(csv_file)
+                csv_dir: str = os.path.join(output_directory, station, self.resample)
+                os.makedirs(csv_dir, exist_ok=True)
 
-            # Return CSV location
-            return csv_file
+                csv_file = os.path.join(csv_dir, f'{station}_{date}.csv')
+
+                # Saving to CSV
+                print("💾 Saving to {}".format(csv_file))
+                df.to_csv(csv_file)
+
+                # Return CSV location
+                return csv_file
+
+            return f'⚠️💾 Not saved. Not enough data for {station}'
 
     @staticmethod
     def concatenate_csv(rsam_directory: str, station: str, resample: str) -> str:
@@ -96,6 +101,7 @@ class RSAM:
                    'median', 'rms', 'VLP', 'LP', 'VT', 'f_ratio']
 
         big_df.to_csv(combined_csv_files, index=False, columns=columns)
+        print(f'✅ Saved to {combined_csv_files}')
         return combined_csv_files
 
     @staticmethod
@@ -141,51 +147,95 @@ class RSAM:
         return fig
 
     @staticmethod
+    def plot_from_df(df: pd.DataFrame, station: str, resample: str, interval_day: int = 14,
+                     y_min: float = -20.0, y_max: float = 0.0, title: str = None,
+                     axvspans: list[list[str]] = None, axvlines: list[str] = None):
+
+        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3),
+                                layout="constrained", sharex=True)
+
+        df['VT_24h'] = df['VT'].loc[:].rolling('1d', center=True).median()
+        # df['VT_72h'] = df['VT'].rolling('3d', center=True).median()
+
+        axs.scatter(df.index, df['VT'], c='k', alpha=0.3, s=10, label='10 minutes')
+        axs.plot(df.index, df['VT_24h'], c='red', label='1d', alpha=1)
+        # axs.plot(df.index, df['VT_72h'], c='green', label='3d', alpha=1)
+
+        axs.set_ylabel('Amplitude (count)')
+
+        # axs[index_key].set_xlabel('Date')
+
+        axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
+        axs.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        axs.set_ylim(y_min, y_max)
+        axs.set_xlim(df.first_valid_index(), df.last_valid_index())
+
+        axs.annotate(
+            text=f'RSAM ' + station if title is None else title,
+            xy=(0.01, 0.92),
+            xycoords='axes fraction',
+            fontsize='8',
+            bbox=dict(facecolor='white', alpha=0.5)
+        )
+
+        # Plotting eruptions
+        if (axvspans is not None) or (axvlines is not None):
+            plot_eruptions(axs, axvspans, axvlines)
+
+        # Add legend
+        axs.legend(loc='upper right', fontsize='8', ncol=4)
+
+        # Rotate x label
+        for label in axs.get_xticklabels(which='major'):
+            label.set(rotation=30, horizontalalignment='right')
+
+        return fig
+
+
+    @staticmethod
     def plot_single_graph(rsam_directory: str, station: str, resample: str,
                           interval_day: int = 14, y_min: float = 0, y_max: float = 0.0004, title: str = None,
                           axvspans: list[list[str]] = None, axvlines: list[str] = None):
 
-        bands = ['VT', 'LP', 'VLP']
-
-        fig, axs = plt.subplots(nrows=len(bands), ncols=1, figsize=(12, 3*len(bands)),
+        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3),
                                 layout="constrained", sharex=True)
 
         df = get_combined_csv(rsam_directory, station, resample)
 
-        for index_key, band in enumerate(bands):
-            new_column = f'{band}_24h'
-            df[new_column] = df[band].rolling('24h', center=True).median()
+        df['VT_24h'] = df['VT'].rolling('1d', center=True).median()
+        # df['VT_72h'] = df['VT'].rolling('3d', center=True).median()
 
-            axs[index_key].scatter(df.index, df[band], c='k', alpha=0.3, s=10, label='10 minutes')
-            axs[index_key].plot(df.index, df[new_column], c='red', label='24h', alpha=1)
+        axs.scatter(df.index, df['VT'], c='k', alpha=0.3, s=10, label='10 minutes')
+        axs.plot(df.index, df['VT_24h'], c='red', label='1d', alpha=1)
+        # axs.plot(df.index, df['VT_72h'], c='green', label='3d', alpha=1)
 
-            axs[index_key].set_ylabel('Amplitude (count)')
+        axs.set_ylabel('Amplitude (count)')
 
-            # axs[index_key].set_xlabel('Date')
+        # axs[index_key].set_xlabel('Date')
 
-            axs[index_key].xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
-            axs[index_key].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
-            axs[index_key].set_ylim(y_min, y_max)
-            axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
+        axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
+        axs.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        axs.set_ylim(y_min, y_max)
+        axs.set_xlim(df.first_valid_index(), df.last_valid_index())
 
-            axs[index_key].annotate(
-                text=f'RSAM {band}' + station if title is None else title,
-                xy=(0.01, 0.92),
-                xycoords='axes fraction',
-                fontsize='8',
-                bbox=dict(facecolor='white', alpha=0.5)
-            )
+        axs.annotate(
+            text=f'RSAM ' + station if title is None else title,
+            xy=(0.01, 0.92),
+            xycoords='axes fraction',
+            fontsize='8',
+            bbox=dict(facecolor='white', alpha=0.5)
+        )
 
-            # Plotting eruptions
-            if (axvspans is not None) or (axvlines is not None):
-                plot_eruptions(axs[index_key], axvspans, axvlines)
+        # Plotting eruptions
+        if (axvspans is not None) or (axvlines is not None):
+            plot_eruptions(axs, axvspans, axvlines)
 
-            # Add legend
-            axs[index_key].legend(loc='upper right', fontsize='8', ncol=4)
+        # Add legend
+        axs.legend(loc='upper right', fontsize='8', ncol=4)
 
-            # Rotate x label
-            for label in axs[index_key].get_xticklabels(which='major'):
-                label.set(rotation=30, horizontalalignment='right')
+        # Rotate x label
+        for label in axs.get_xticklabels(which='major'):
+            label.set(rotation=30, horizontalalignment='right')
 
         return fig
 
