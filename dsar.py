@@ -76,7 +76,7 @@ class DSAR:
 
         for station, df in self.dfs.items():
 
-            if df.count() > 1:
+            if not df.empty:
                 date: str = str(df.first_valid_index()).split(' ')[0]
 
                 csv_directory: str = os.path.join(output_directory, station, self.resample)
@@ -133,7 +133,7 @@ class DSAR:
         # df['std'] = df['DSAR_{}'.format(resample)].rolling('24h', center=True).mean()
         # axs.plot(df.index, df['std'], c='yellow', label='24h', alpha=1)
 
-        axs.plot(df.index, df['DSAR_24h'], c='red', label='24h', alpha=1)
+        axs.plot(df.index, df['DSAR_24h'], c='orange', label='24h', alpha=1)
         axs.set_ylabel('DSAR')
 
         # axs.set_xlabel('Date')
@@ -168,18 +168,25 @@ class DSAR:
     @staticmethod
     def plot(dsar_directory: str, stations: list[str], resample: str,
              interval_day: int = 14, y_min: float = 0, y_max: float = 6.5, title: str = None,
-             axvspans: list[list[str]] = None, axvlines: list[str] = None) -> plt.Figure:
+             axvspans: list[list[str]] = None, axvlines: list[str] = None, window: str = None) -> plt.Figure:
 
         fig, axs = plt.subplots(nrows=len(stations), ncols=1, figsize=(12, 3 * len(stations)),
                                 layout="constrained", sharex=True)
 
+        if window is None:
+            window = '24h'
+
         for index_key, _station in enumerate(stations):
             df = get_combined_csv(dsar_directory, _station, resample)
 
-            axs[index_key].scatter(df.index, df['DSAR_{}'.format(resample)],
-                                   c='k', alpha=0.3, s=10, label='10min')
+            df = df[(df['DSAR_{}'.format(resample)] > 0.1) & (df['DSAR_{}'.format(resample)] <= 5.0)]
 
-            axs[index_key].plot(df.index, df['DSAR_24h'], c='red', label='24h', alpha=1)
+            axs[index_key].scatter(df.index, df['DSAR_{}'.format(resample)],
+                                   c='k', alpha=0.2, s=5, label='10min')
+
+            df['DSAR_{}'.format(window)] = df['DSAR_{}'.format(resample)].rolling(window, center=True).median()
+
+            axs[index_key].plot(df.index, df['DSAR_{}'.format(window)], c='orange', label=window, alpha=1)
             axs[index_key].set_ylabel('DSAR')
 
             if index_key == (len(stations) - 1):
@@ -189,7 +196,9 @@ class DSAR:
             axs[index_key].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
 
             axs[index_key].set_ylim(y_min, y_max)
-            axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
+
+            if index_key == 0:
+                axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
 
             axs[index_key].annotate(
                 text='DSAR - ' + _station if title is None else title,

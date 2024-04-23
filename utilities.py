@@ -25,7 +25,7 @@ def fill_streams(client: Client, station: str, date: UTCDateTime) -> Stream:
     if stream.count():
         stream_date: str = stream[0].stats.starttime.strftime('%Y-%m-%d')
         if date.strftime('%Y-%m-%d') != stream_date:
-            print("⛔ {} :: File(s) for date {} vs {} INVALID!".format(station, date.strftime('%Y-%m-%d'), stream_date))
+            print("⚠️ {} :: File(s) for date {} vs {} INVALID!".format(station, date.strftime('%Y-%m-%d'), stream_date))
             return stream
         print('ℹ️ {} :: File(s) for date {} OK!'.format(station, date.strftime('%Y-%m-%d')))
         return stream
@@ -75,7 +75,7 @@ def plot_continuous_eruption(axes, axvspans: list[list[str]]):
 def plot_single_eruption(axes, axvlines: list[str]):
     for key, date in enumerate(axvlines):
         axes.axvline(datetime.strptime(date, '%Y-%m-%d'),
-                               alpha=0.4, color='orange', label="_" * key + 'Single Eruption')
+                    color='red', label="_" * key + 'Single Eruption')
     return axes
 
 

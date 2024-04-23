@@ -59,7 +59,7 @@ class RSAM:
 
         for station, df in self.dataframes.items():
 
-            if df.count() > 1:
+            if not df.empty:
 
                 date = str(df.first_valid_index()).split(' ')[0]
 
@@ -116,7 +116,7 @@ class RSAM:
         df['f_ratio_24h'] = df['f_ratio'].rolling('24h', center=True).median()
 
         axs.scatter(df.index, df['f_ratio'], c='k', alpha=0.3, s=10, label='10 minutes')
-        axs.plot(df.index, df['f_ratio_24h'], c='red', label='24h', alpha=1)
+        axs.plot(df.index, df['f_ratio_24h'], c='orange', label='24h', alpha=1)
 
         axs.set_ylabel('Amplitude (count)')
 
@@ -158,7 +158,7 @@ class RSAM:
         # df['VT_72h'] = df['VT'].rolling('3d', center=True).median()
 
         axs.scatter(df.index, df['VT'], c='k', alpha=0.3, s=10, label='10 minutes')
-        axs.plot(df.index, df['VT_24h'], c='red', label='1d', alpha=1)
+        axs.plot(df.index, df['VT_24h'], c='orange', label='1d', alpha=1)
         # axs.plot(df.index, df['VT_72h'], c='green', label='3d', alpha=1)
 
         axs.set_ylabel('Amplitude (count)')
@@ -206,7 +206,7 @@ class RSAM:
         # df['VT_72h'] = df['VT'].rolling('3d', center=True).median()
 
         axs.scatter(df.index, df['VT'], c='k', alpha=0.3, s=10, label='10 minutes')
-        axs.plot(df.index, df['VT_24h'], c='red', label='1d', alpha=1)
+        axs.plot(df.index, df['VT_24h'], c='orange', label='1d', alpha=1)
         # axs.plot(df.index, df['VT_72h'], c='green', label='3d', alpha=1)
 
         axs.set_ylabel('Amplitude (count)')
@@ -242,18 +242,21 @@ class RSAM:
     @staticmethod
     def plot(rsam_directory: str, stations: list[str], resample: str,
              interval_day: int = 14, y_min: float = 0, y_max: float = 0.0004, title: str = None,
-             axvspans: list[list[str]] = None, axvlines: list[str] = None) -> plt.Figure:
+             axvspans: list[list[str]] = None, axvlines: list[str] = None, window: str = None) -> plt.Figure:
 
         fig, axs = plt.subplots(nrows=len(stations), ncols=1, figsize=(12, 3 * len(stations)),
                                 layout="constrained", sharex=True)
 
+        if window is None:
+            window = '24h'
+
         for index_key, _station in enumerate(stations):
             df = get_combined_csv(rsam_directory, _station, resample)
 
-            df['VT_24h'] = df['VT'].rolling('24h', center=True).median()
+            df['VT_{}'.format(window)] = df['VT'].rolling(window, center=True).median()
 
-            axs[index_key].scatter(df.index, df.VT, c='k', alpha=0.3, s=10, label='10 minutes')
-            axs[index_key].plot(df.index, df.VT_24h, c='red', label='24h', alpha=1)
+            axs[index_key].scatter(df.index, df['VT'], c='k', alpha=0.3, s=10, label='10 minutes')
+            axs[index_key].plot(df.index, df['VT_{}'.format(window)], c='orange', label=window, alpha=1)
 
             axs[index_key].set_ylabel('Amplitude (count)')
 
@@ -264,7 +267,9 @@ class RSAM:
             axs[index_key].xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
             axs[index_key].xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
             axs[index_key].set_ylim(y_min, y_max)
-            axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
+
+            if index_key == 0:
+                axs[index_key].set_xlim(df.first_valid_index(), df.last_valid_index())
 
             axs[index_key].annotate(
                 text='RSAM '+_station if title is None else title,
