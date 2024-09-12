@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from .core import DSAR
 from .frequency_bands import FrequencyBands
-from .dsar import DSAR
 from pkg_resources import get_distribution
 
-__version__ = get_distribution("magma-rsam").version
+__version__ = get_distribution("dsar").version
 __author__ = "Martanto"
 __author_email__ = "martanto@live.com"
 __license__ = "MIT"

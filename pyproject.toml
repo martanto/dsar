@@ -1,0 +1,47 @@
+[build-system]
+requires = ["flit_core>=3.4"]
+build-backend = "flit_core.buildapi"
+
+[project]
+name =  "dsar"
+version = "1.0.0"
+authors = [
+    {name = "Martanto", email = "martanto@live.com"},
+    {name = "Corentin Caudron", email = "corentin@ulb.be"},
+]
+description = "Calculating Displacement Seismic Amplitude Ratio (DSAR) Value"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["seismic", "volcano", "volcanology", "dsar"]
+requires-python = ">=3.10"
+dependencies = [
+    "obspy>=1.4.0",
+    "openpyxl>=3.1.5",
+    "pandas>=2.2.0",
+    "numpy>=2.0.0",
+    "matplotlib>=3.9.0",
+    "peewee>=3.17.6",
+    "python-slugify>=8.0.0"
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+base = [
+    "obspy",
+    "openpyxl",
+    "pandas",
+    "numpy",
+    "matplotlib",
+    "peewee",
+    "python-slugify"
+]
+
+[project.urls]
+Homepage = "https://github.com/martanto/dsar"
+Issues = "https://github.com/martanto/dsar/issues"
