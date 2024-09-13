@@ -54,7 +54,6 @@ class PlotDsar:
 
         if figures_dir is None:
             figures_dir: str = os.path.join(os.getcwd(), 'output', 'figures', 'dsar')
-        os.makedirs(figures_dir, exist_ok=True)
         self.figures_dir = figures_dir
 
         self.y_min = None
@@ -69,8 +68,11 @@ class PlotDsar:
         """
         df_list: list = []
 
-        csv_files: list[str] = glob(os.path.join(
-            self.dsar_dir, self.nslc, self.resample, "*.csv"))
+        csv_path = os.path.join(self.dsar_dir, self.nslc, self.resample)
+
+        csv_files: list[str] = glob(os.path.join(csv_path, "*.csv"))
+
+        assert len(csv_files) > 0, f"❌ File CSV(s) not found in {csv_path}."
 
         for csv in csv_files:
             df = pd.read_csv(csv)
@@ -88,14 +90,39 @@ class PlotDsar:
             self.dsar_dir, self.nslc, "combined_{}_{}.csv".format(self.resample, self.nslc))
 
         big_df.to_csv(combined_csv_files, index=True)
-        print(f'✅ Saved to {combined_csv_files}')
+        print(f'✅ Combiner CSV saved to: {combined_csv_files}')
         return big_df
+
+    def save(self, figure: plt.Figure, file_type: str = 'png') -> bool:
+        """Save figure.
+
+        Args:
+            figure (plt.Figure): Plot figure
+            file_type (str, optional): File type. Default png
+
+        Returns:
+            bool: True or False
+        """
+        save_path: str = os.path.join(self.figures_dir, self.nslc)
+        os.makedirs(save_path, exist_ok=True)
+
+        filename: str = f"{self.nslc}_{self.resample}_{self.start_date}-{self.end_date}.{file_type}"
+        save_file = os.path.join(save_path, filename)
+        try:
+            figure.savefig(save_file, dpi=300)
+            print(f'📷 Figure saved to: {save_file}')
+            return True
+        except Exception as e:
+            print(e)
+            return False
 
     def plot(self,
              interval_day: int = 3,
              title: str = None,
              y_min: float = None,
-             y_max: float = None,) -> plt.Figure:
+             y_max: float = None,
+             save: bool = True,
+             file_type: str = 'png') -> plt.Figure:
         """Plot DSAR
 
         Args:
@@ -103,6 +130,8 @@ class PlotDsar:
             title (str): Plot title
             y_min (float): Minimum value. Default None
             y_max (float): Maximum value. Default None
+            save (bool): Save figure. Default True
+            file_type (str): File type. Default png
 
         Returns:
             plt.Figure
@@ -140,5 +169,8 @@ class PlotDsar:
         # Rotate x label
         for label in axs.get_xticklabels(which='major'):
             label.set(rotation=30, horizontalalignment='right')
+
+        if save is True:
+            self.save(fig, file_type)
 
         return fig
