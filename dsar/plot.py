@@ -17,6 +17,22 @@ class PlotDsar:
                  network: str = 'VG',
                  location: str = '00',
                  resample: str = '10min', ):
+        """Plot DSAR
+
+        Args:
+            start_date (str): start date of plot
+            end_date (str): end date of plot
+            station (str): station name
+            channel (str): channel name
+            dsar_dir (str): Output for calculated DSAR
+            figures_dir (str): Output for plotting figures
+            network (str): Network name. Default VG
+            location (str): Location name. Default 00
+            resample (str): Resampling interval. Default 10min
+
+        Returns:
+            None
+        """
         self.start_date = start_date
         self.end_date = end_date
         self.station = station
@@ -44,7 +60,13 @@ class PlotDsar:
         self.y_min = None
         self.y_max = None
 
-    def concat_csv(self) -> pd.DataFrame:
+    @property
+    def df(self) -> pd.DataFrame:
+        """Get dataframe from csv file
+
+        Returns:
+            pd.DataFrame
+        """
         df_list: list = []
 
         csv_files: list[str] = glob(os.path.join(
@@ -73,12 +95,24 @@ class PlotDsar:
              interval_day: int = 3,
              title: str = None,
              y_min: float = None,
-             y_max: float = None,):
+             y_max: float = None,) -> plt.Figure:
+        """Plot DSAR
+
+        Args:
+            interval_day: Interval days. Default 3
+            title (str): Plot title
+            y_min (float): Minimum value. Default None
+            y_max (float): Maximum value. Default None
+
+        Returns:
+            plt.Figure
+        """
+        df = self.df
+
+        assert not df.empty, f"❌ self.df is empty"
 
         fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3),
                                 layout="constrained")
-
-        df = self.concat_csv()
 
         axs.scatter(df.index, df['DSAR_{}'.format(self.resample)],
                     c='k', alpha=0.3, s=10, label='10min')
