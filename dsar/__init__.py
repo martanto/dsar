@@ -3,6 +3,7 @@
 
 from .core import DSAR
 from .frequency_bands import FrequencyBands
+from .plot import PlotDsar
 from magma_converter.search import Search
 from pkg_resources import get_distribution
 
@@ -17,4 +18,5 @@ __all__ = [
     "FrequencyBands",
     "DSAR",
     "Search",
+    "PlotDsar",
 ]
