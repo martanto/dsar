@@ -23,6 +23,20 @@ class DSAR:
                  network: str = None,
                  location: str = None,
                  resample: str = None,):
+        """Calculate Displacement Seismic Amplitude Ratio (DSAR)
+
+        Args:
+            input_dir (str): Directory where input files are located.
+            start_date (str): Start date in YYYY-MM-DD format.
+            end_date (str): End date in YYYY-MM-DD format.
+            directory_structure (str, optional): Directory where input files are located.
+            output_dir (str, optional): Directory where output files are located.
+            station (str, optional): Station name.
+            channel (str, optional): Channel name.
+            network (str, optional): Network name.
+            location (str, optional): Location name.
+            resample (str, optional): Resampling.
+        """
         self.input_dir = input_dir
         self.start_date = start_date
         self.end_date = end_date
