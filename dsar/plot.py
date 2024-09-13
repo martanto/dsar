@@ -83,7 +83,7 @@ class PlotDsar:
         axs.scatter(df.index, df['DSAR_{}'.format(self.resample)],
                     c='k', alpha=0.3, s=10, label='10min')
 
-        axs.plot(df.index, df['DSAR_24h_median'], c='orange', label='24h', alpha=1)
+        axs.plot(df.index, df['DSAR_24h_median'], c='orange', label='24h_median', alpha=1)
         axs.set_ylabel('DSAR')
 
         axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
