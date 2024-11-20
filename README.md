@@ -71,7 +71,7 @@ Output:
 ```
 
 Figures:
-![output.png](https://github.com/martanto/dsar/blob/master/examples/figures/output.png?raw=true)
+![output.png](https://github.com/martanto/dsar/blob/master/images/output.png?raw=true)
 
 
 ## References
