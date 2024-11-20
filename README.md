@@ -1,31 +1,76 @@
 #  Displacement Seismic Amplitude Ratio (DSAR)
 
 ## How to Use
-
-1. All the seismic data must have SDS Directory as an input. See an example in [input directory](input). Or you can check it here https://www.seiscomp.de/seiscomp3/doc/applications/slarchive/SDS.html
-2. Inside `main.py` or `main.ipynb` change those parameters:
+### Install using pip:
 ```python
-network = "VG"
-station = "PSAG"
-location = "00"
-channel = "EHZ"
-
-sds_directory = r"D:\Projects\dsar\input"
-output_directory = 'output'
-
-start_date = "2017-12-01"
-end_date = "2017-12-03"
-
-bands: dict[str, list[float]] = {
-    'HF' : [0.1, 8.0, 16.0],
-    'LF' : [0.1, 4.5, 8.0],
-}
-
-resample_rule: str = '10min'
+pip install dsar
 ```
-3. Run the `main.py` or `main.ipynb`.
-4. The output of this code would be saved into `output` directory and will be used as an input of `dsar.py`.
-5. Run `dsar.py` to get the calculated _dsar_ CSV and plot the result.
+
+### Import `dsar` module
+```python
+from dsar import DSAR, PlotDsar
+```
+
+### Initiate DSAR
+```python
+dsar = DSAR(
+    input_dir="G:\\Output\\Converted\\SDS",
+    directory_structure='SDS',
+    start_date="2024-01-01",
+    end_date="2024-04-22",
+    station="RUA3",
+    channel="EHZ",
+    resample="10min" # default
+)
+```
+
+See https://github.com/martanto/magma-converter for supported `directory_structure`.
+
+### Run DSAR
+```python
+dsar.run()
+```
+
+### Results/Output directory
+Output directory would be as the same folder where DSAR code is running. It will create `output` directory.
+
+### Plot DSAR
+Initiate DSAR plot
+```python
+plot = PlotDsar(
+    start_date="2024-01-01",
+    end_date="2024-04-22",
+    station="RUA3",
+    channel="EHZ"
+)
+```
+
+### Get combined dataframe to plot
+```python
+df = plot.df
+```
+The output of dataframe will be saved as CSV:
+```text
+✅ Saved to D:\Project\dsar\output\dsar\VG.RUA3.00.EHZ\combined_10min_VG.RUA3.00.EHZ.csv
+```
+
+Plot DSAR:
+```python
+plot.plot(
+    interval_day=7,
+    y_min=85,
+    y_max=225,
+    save=True,
+    file_type='jpg',
+)
+```
+Output:
+```text
+✅ Saved to D:\Project\dsar\output\dsar\VG.RUA3.00.EHZ\combined_10min_VG.RUA3.00.EHZ.csv
+📷 Figure saved to: D:\Project\dsar\output\figures\dsar\VG.RUA3.00.EHZ\VG.RUA3.00.EHZ_10min_2024-01-01-2024-04-22.jpg
+```
+![output.png](https://github.com/martanto/dsar/blob/master/examples/figures/output.png?raw=true)
+
 
 ## References
 > Caudron, C., et al., 2019, Change in seismic attenuation as a long-term precursor of gas-driven
