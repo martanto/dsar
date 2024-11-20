@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name =  "dsar"
-version = "1.0.0"
+version = "1.1.0"
 authors = [
     {name = "Martanto", email = "martanto@live.com"},
     {name = "Corentin Caudron", email = "corentin@ulb.be"},
@@ -13,7 +13,7 @@ description = "Calculating Displacement Seismic Amplitude Ratio (DSAR) Value"
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["seismic", "volcano", "volcanology", "dsar"]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "obspy>=1.4.0",
     "openpyxl>=3.1.5",
@@ -27,7 +27,6 @@ dependencies = [
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
@@ -39,6 +38,7 @@ base = [
     "pandas",
     "numpy",
     "matplotlib",
+    "magma-converter",
     "peewee",
     "python-slugify"
 ]
