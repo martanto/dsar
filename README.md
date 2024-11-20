@@ -69,7 +69,9 @@ Output:
 ✅ Saved to D:\Project\dsar\output\dsar\VG.RUA3.00.EHZ\combined_10min_VG.RUA3.00.EHZ.csv
 📷 Figure saved to: D:\Project\dsar\output\figures\dsar\VG.RUA3.00.EHZ\VG.RUA3.00.EHZ_10min_2024-01-01-2024-04-22.jpg
 ```
-![output.png](https://github.com/martanto/dsar/blob/master/examples/figures/output.png?raw=true)
+
+Figures:
+![output.png](https://github.com/martanto/dsar/blob/master/images/output.png?raw=true)
 
 
 ## References
