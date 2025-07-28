@@ -1,8 +1,8 @@
-from .frequency_bands import FrequencyBands, default_bands
-from .utilities import trace_to_series
+from dsar.frequency_bands import FrequencyBands, default_bands
+from dsar.utilities import trace_to_series
 from datetime import datetime
 from magma_converter.search import Search
-from obspy import read, Stream
+from obspy import Stream
 from typing_extensions import List, Self
 
 import pandas as pd
@@ -10,19 +10,21 @@ import os
 
 
 class DSAR:
-    resample: str = '10min'
+    resample: str = "10min"
 
-    def __init__(self,
-                 input_dir: str,
-                 start_date: str,
-                 end_date: str,
-                 directory_structure: str = 'sds',
-                 output_dir: str = None,
-                 station: str = None,
-                 channel: str = None,
-                 network: str = None,
-                 location: str = None,
-                 resample: str = None,):
+    def __init__(
+        self,
+        input_dir: str,
+        start_date: str,
+        end_date: str,
+        directory_structure: str = "sds",
+        output_dir: str = None,
+        station: str = None,
+        channel: str = None,
+        network: str = None,
+        location: str = None,
+        resample: str = None,
+    ):
         """Calculate Displacement Seismic Amplitude Ratio (DSAR)
 
         Args:
@@ -43,16 +45,18 @@ class DSAR:
         self.directory_structure = directory_structure.lower()
         self.output_dir = output_dir
         self.resample = resample if resample is not None else self.resample
-        self.station = '*' if station is None else station
-        self.channel = '*' if channel is None else channel
-        self.network = '*' if network is None else network
-        self.location = '*' if location is None else location
+        self.station = "*" if station is None else station
+        self.channel = "*" if channel is None else channel
+        self.network = "*" if network is None else network
+        self.location = "*" if location is None else location
 
         self.nslc = f"{self.network}.{self.station}.{self.location}.{self.channel}"
-        self.start_date_obj = datetime.strptime(start_date, '%Y-%m-%d')
-        self.end_date_obj = datetime.strptime(end_date, '%Y-%m-%d')
+        self.start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+        self.end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
 
-        assert self.start_date_obj <= self.end_date_obj, f"❌ start_date must before end_date"
+        assert (
+            self.start_date_obj <= self.end_date_obj
+        ), f"❌ start_date must before end_date"
 
         self.dfs: dict[str, pd.DataFrame] = {}
 
@@ -63,15 +67,15 @@ class DSAR:
         self._second_bands: dict[str, List[float]] | None = None
 
     def __repr__(self):
-        return (f"DSAR(input_dir={self.input_dir}, start_date={self.start_date}, end_date={self.end_date}, "
-                f"directory_structure={self.directory_structure}, resample={self.resample}, "
-                f"first_bands={self._first_bands}, second_bands={self._second_bands}, bands={self.bands}")
+        return (
+            f"DSAR(input_dir={self.input_dir}, start_date={self.start_date}, end_date={self.end_date}, "
+            f"directory_structure={self.directory_structure}, resample={self.resample}, "
+            f"first_bands={self._first_bands}, second_bands={self._second_bands}, bands={self.bands}"
+        )
 
-    def first_bands(self,
-                    name: str,
-                    first_freq: float,
-                    second_freq: float,
-                    third_freq: float) -> Self:
+    def first_bands(
+        self, name: str, first_freq: float, second_freq: float, third_freq: float
+    ) -> Self:
         """Set first_bands
 
         Args:
@@ -83,15 +87,15 @@ class DSAR:
         Returns:
             Self
         """
-        self._first_bands = FrequencyBands(name, first_freq, second_freq, third_freq).to_dict()
+        self._first_bands = FrequencyBands(
+            name, first_freq, second_freq, third_freq
+        ).to_dict()
         self._first_label = name
         return self
 
-    def second_bands(self,
-                     name: str,
-                     first_freq: float,
-                     second_freq: float,
-                     third_freq: float) -> Self:
+    def second_bands(
+        self, name: str, first_freq: float, second_freq: float, third_freq: float
+    ) -> Self:
         """Set second_bands
 
         Args:
@@ -103,7 +107,9 @@ class DSAR:
         Returns:
             Self
         """
-        self._second_bands = FrequencyBands(name, first_freq, second_freq, third_freq).to_dict()
+        self._second_bands = FrequencyBands(
+            name, first_freq, second_freq, third_freq
+        ).to_dict()
         self._second_label = name
         return self
 
@@ -134,14 +140,15 @@ class DSAR:
         Returns:
             Stream: Stream with filtered band frequencies
         """
-        assert len(band_frequencies) == 3, (f"❌ Length of band_frequencies must equal 3. "
-                                            f"Example [0.1, 8.0, 16.0]")
+        assert len(band_frequencies) == 3, (
+            f"❌ Length of band_frequencies must equal 3. " f"Example [0.1, 8.0, 16.0]"
+        )
         stream.merge(fill_value=0)
-        stream.detrend('demean')
-        stream.filter('highpass', freq=band_frequencies[0])
+        stream.detrend("demean")
+        stream.filter("highpass", freq=band_frequencies[0])
         stream.integrate()
-        stream.filter('highpass', freq=band_frequencies[1])
-        stream.filter('lowpass', freq=band_frequencies[2])
+        stream.filter("highpass", freq=band_frequencies[1])
+        stream.filter("lowpass", freq=band_frequencies[2])
         return stream
 
     def calculate(self, dfs: dict[str, pd.DataFrame]) -> Self:
@@ -153,25 +160,29 @@ class DSAR:
         Returns:
             Self: DSAR object
         """
-        first_label = 'LF' if self._first_label is None else self._first_label
-        second_label = 'HF' if self._second_label is None else self._second_label
+        first_label = "LF" if self._first_label is None else self._first_label
+        second_label = "HF" if self._second_label is None else self._second_label
 
         for station, df in dfs.items():
-            default_name: str = 'DSAR_{}'.format(self.resample)
+            default_name: str = "DSAR_{}".format(self.resample)
 
-            dfs[station][default_name] = (df[first_label] / df[second_label])
-            dfs[station]['DSAR_6h_median'] = df[default_name].rolling('6h', center=True).median()
-            dfs[station]['DSAR_24h_median'] = df[default_name].rolling('24h', center=True).median()
+            dfs[station][default_name] = df[first_label] / df[second_label]
+            dfs[station]["DSAR_6h_median"] = (
+                df[default_name].rolling("6h", center=True).median()
+            )
+            dfs[station]["DSAR_24h_median"] = (
+                df[default_name].rolling("24h", center=True).median()
+            )
 
             dfs[station] = dfs[station].dropna()
             dfs[station] = dfs[station].loc[~dfs[station].index.duplicated(), :]
-            dfs[station] = dfs[station].interpolate('time').interpolate()
+            dfs[station] = dfs[station].interpolate("time").interpolate()
 
         self.dfs = dfs
 
         return self
 
-    def save(self, date_str: str) ->str:
+    def save(self, date_str: str) -> str | None:
         """Save DSAR daily calculated
 
         Args:
@@ -183,35 +194,41 @@ class DSAR:
         output_directory = self.output_dir
 
         if output_directory is None:
-            output_directory: str = os.path.join(os.getcwd(), 'output', 'dsar')
+            output_directory: str = os.path.join(os.getcwd(), "output", "dsar")
             os.makedirs(output_directory, exist_ok=True)
 
         for station, df in self.dfs.items():
             if not df.empty:
-                date: str = str(df.first_valid_index()).split(' ')[0]
+                date: str = str(df.first_valid_index()).split(" ")[0]
 
-                csv_directory: str = os.path.join(output_directory, station, self.resample)
+                csv_directory: str = os.path.join(
+                    output_directory, station, self.resample
+                )
                 os.makedirs(csv_directory, exist_ok=True)
 
-                csv_file: str = os.path.join(csv_directory, f'{station}_{date}.csv')
+                csv_file: str = os.path.join(csv_directory, f"{station}_{date}.csv")
 
                 df.to_csv(csv_file, index=True)
                 print(f"💾 {date_str} : Saved to {csv_file}")
 
                 return csv_file
 
-            return f'⚠️ {date_str} : Not saved. Not enough data for {station}'
+            return f"⚠️ {date_str} : Not saved. Not enough data for {station}"
+
+        return None
 
     def run(self) -> None:
         """Run DSAR"""
-        dates: pd.DatetimeIndex = pd.date_range(self.start_date, self.end_date, freq='D')
+        dates: pd.DatetimeIndex = pd.date_range(
+            self.start_date, self.end_date, freq="D"
+        )
 
         for date_obj in dates:
             dfs: dict[str, pd.DataFrame] = {}
-            date_str: str = date_obj.strftime('%Y-%m-%d')
+            date_str: str = date_obj.strftime("%Y-%m-%d")
 
-            print(f'==============================')
-            print(f'⌛ {date_str} : Get stream for {date_str}')
+            print(f"==============================")
+            print(f"⌛ {date_str} : Get stream for {date_str}")
 
             stream: Stream = Search(
                 input_dir=self.input_dir,
@@ -223,16 +240,22 @@ class DSAR:
             ).search(date_str=date_str)
 
             if stream.count() > 0:
-                print(f'✅ {date_str} : Found {stream.count()} trace(s) in stream')
+                print(f"✅ {date_str} : Found {stream.count()} trace(s) in stream")
                 for trace in stream:
-                    dfs[trace.id]: pd.DataFrame  = pd.DataFrame()
+                    dfs[trace.id]: pd.DataFrame = pd.DataFrame()
 
                 for band_name, band_frequencies in self.bands.items():
                     for trace in self.process(stream, band_frequencies):
-                        print(f'🧮 {date_str} : Calculating {trace.id} for {band_name}')
-                        series = trace_to_series(trace=trace).resample(self.resample).median()
-                        dfs[trace.id][band_name]: pd.DataFrame = series.to_frame().sort_index()
+                        print(f"🧮 {date_str} : Calculating {trace.id} for {band_name}")
+                        series = (
+                            trace_to_series(trace=trace)
+                            .resample(self.resample)
+                            .median()
+                        )
+                        dfs[trace.id][
+                            band_name
+                        ]: pd.DataFrame = series.to_frame().sort_index()
 
                 self.calculate(dfs=dfs).save(date_str=date_str)
             else:
-                print(f'❌ {date_str} : No trace(s) found. Skip')
+                print(f"❌ {date_str} : No trace(s) found. Skip")

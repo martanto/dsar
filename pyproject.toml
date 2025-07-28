@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name =  "dsar"
-version = "1.1.0"
+version = "1.2.0"
 authors = [
     {name = "Martanto", email = "martanto@live.com"},
     {name = "Corentin Caudron", email = "corentin@ulb.be"},
