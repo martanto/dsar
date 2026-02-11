@@ -4,10 +4,10 @@
 from dsar.core import DSAR
 from dsar.frequency_bands import FrequencyBands
 from dsar.plot import PlotDsar
-from magma_converter.search import Search
-from pkg_resources import get_distribution
+from dsar.sds import SDS
+from importlib.metadata import version
 
-__version__ = get_distribution("dsar").version
+__version__ = version("dsar")
 __author__ = "Martanto"
 __author_email__ = "martanto@live.com"
 __license__ = "MIT"
@@ -17,6 +17,6 @@ __url__ = "https://github.com/martanto/dsar"
 __all__ = [
     "FrequencyBands",
     "DSAR",
-    "Search",
     "PlotDsar",
+    "SDS",
 ]

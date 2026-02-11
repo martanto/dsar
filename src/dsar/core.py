@@ -1,7 +1,7 @@
 from dsar.frequency_bands import FrequencyBands, default_bands
 from dsar.utilities import trace_to_series
 from datetime import datetime
-from magma_converter.search import Search
+from dsar.sds import SDS
 from obspy import Stream
 from typing_extensions import List, Self
 
@@ -14,16 +14,18 @@ class DSAR:
 
     def __init__(
         self,
+        station: str,
+        channel: str,
+        network: str,
+        location: str,
         input_dir: str,
         start_date: str,
         end_date: str,
         directory_structure: str = "sds",
         output_dir: str = None,
-        station: str = None,
-        channel: str = None,
-        network: str = None,
-        location: str = None,
         resample: str = None,
+        verbose: bool = False,
+        debug: bool = False,
     ):
         """Calculate Displacement Seismic Amplitude Ratio (DSAR)
 
@@ -45,14 +47,23 @@ class DSAR:
         self.directory_structure = directory_structure.lower()
         self.output_dir = output_dir
         self.resample = resample if resample is not None else self.resample
-        self.station = "*" if station is None else station
-        self.channel = "*" if channel is None else channel
-        self.network = "*" if network is None else network
-        self.location = "*" if location is None else location
+        self.station = station
+        self.channel = channel
+        self.network = network
+        self.location = location
 
         self.nslc = f"{self.network}.{self.station}.{self.location}.{self.channel}"
         self.start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
         self.end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+        self.sds = SDS(
+            input_dir,
+            network=self.network,
+            station=self.station,
+            channel=self.channel,
+            location=self.location,
+            verbose=verbose,
+            debug=debug,
+        )
 
         assert (
             self.start_date_obj <= self.end_date_obj
@@ -230,14 +241,7 @@ class DSAR:
             print(f"==============================")
             print(f"⌛ {date_str} : Get stream for {date_str}")
 
-            stream: Stream = Search(
-                input_dir=self.input_dir,
-                directory_structure=self.directory_structure,
-                network=self.network,
-                station=self.station,
-                channel=self.channel,
-                location=self.location,
-            ).search(date_str=date_str)
+            stream: Stream = self.sds.get(datetime.strptime(date_str, "%Y-%m-%d"))
 
             if stream.count() > 0:
                 print(f"✅ {date_str} : Found {stream.count()} trace(s) in stream")
