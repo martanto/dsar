@@ -77,6 +77,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # IPython
 profile_default/
@@ -152,4 +153,6 @@ cython_debug/
 #.idea/
 *.csv
 /output/
+/.idea
+/.uv_cache/
 /.idea

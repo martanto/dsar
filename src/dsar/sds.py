@@ -132,8 +132,9 @@ class SDS:
         Returns:
             Stream: ObsPy Stream object, or empty Stream if loading fails.
 
-        Raises:
-            None: Returns empty Stream on error instead of raising exceptions.
+        Note:
+            Returns an empty Stream on error instead of raising an exception, so
+            callers should always check ``len(stream)`` before use.
         """
         try:
             # Read miniSEED file
