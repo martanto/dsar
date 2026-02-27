@@ -311,7 +311,7 @@ class DSAR:
                 csv_file: str = os.path.join(csv_directory, f"{station}_{date}.csv")
 
                 df.to_csv(csv_file, index=True)
-                print(f"\U0001F4BE {date_str} : Saved to {csv_file}")
+                print(f"\U0001f4be {date_str} : Saved to {csv_file}")
 
                 return csv_file
 
@@ -348,8 +348,10 @@ class DSAR:
                     dfs[trace.id]: pd.DataFrame = pd.DataFrame()
 
                 for band_name, band_frequencies in self.bands.items():
-                    for trace in self.process(stream, band_frequencies):
-                        print(f"\U0001F9EE {date_str} : Calculating {trace.id} for {band_name}")
+                    for trace in self.process(stream.copy(), band_frequencies):
+                        print(
+                            f"\U0001f9ee {date_str} : Calculating {trace.id} for {band_name}"
+                        )
                         series = (
                             trace_to_series(trace=trace)
                             .resample(self.resample)
