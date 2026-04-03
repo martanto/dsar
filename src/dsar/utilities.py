@@ -1,10 +1,11 @@
 # Standard library imports
+import os
 from datetime import datetime, timedelta
 
 # Third party imports
 import numpy as np
 import pandas as pd
-from obspy import Stream, Trace, UTCDateTime
+from obspy import Trace, Stream, UTCDateTime
 from obspy.clients.filesystem.sds import Client
 
 
@@ -49,7 +50,7 @@ def fill_streams(client: Client, station: str, date: UTCDateTime) -> Stream:
                     station, date.strftime("%Y-%m-%d"), stream_date
                 )
             )
-            return stream
+            return Stream()
         print(
             "\u2139\ufe0f {} :: File(s) for date {} OK!".format(
                 station, date.strftime("%Y-%m-%d")
@@ -85,7 +86,7 @@ def trace_to_series(trace: Trace) -> pd.Series:
     index_time = pd.date_range(
         start=trace.stats.starttime.datetime,
         periods=trace.stats.npts,
-        freq="{}ms".format(trace.stats.delta * 1000),
+        freq=f"{trace.stats.delta * 1000}ms",
     )
 
     _series = pd.Series(
@@ -115,7 +116,9 @@ def trace_to_dataframe(trace: Trace) -> pd.DataFrame:
     return trace_to_series(trace).to_frame()
 
 
-def calculate_per_band(frequencies: list[float], trace: Trace, corners: int = 4) -> pd.Series:
+def calculate_per_band(
+    frequencies: list[float], trace: Trace, corners: int = 4
+) -> pd.Series:
     """Apply a bandpass filter to a trace and return amplitude as a Series.
 
     Filters the trace between the first and last values in ``frequencies`` using a
@@ -188,7 +191,9 @@ def plot_single_eruption(axes, axvlines: list[str]):
     return axes
 
 
-def plot_eruptions(axes, axvspans: list[list[str]] = None, axvlines: list[str] = None):
+def plot_eruptions(
+    axes, axvspans: list[list[str]] | None = None, axvlines: list[str] | None = None
+):
     """Overlay eruption markers on a matplotlib axes.
 
     Combines :func:`plot_continuous_eruption` and :func:`plot_single_eruption` into a
@@ -241,12 +246,8 @@ def get_combined_csv(directory: str, station: str, resample: str) -> pd.DataFram
     Example:
         >>> df = get_combined_csv("output/dsar", "VG.RUA3.00.EHZ", "10min")
     """
-    import os
-
     df = pd.read_csv(
-        os.path.join(
-            directory, station, "combined_{}_{}.csv".format(resample, station)
-        ),
+        os.path.join(directory, station, f"combined_{resample}_{station}.csv"),
         index_col="datetime",
         parse_dates=True,
         date_format="%Y-%m-%d %H:%M:%S",

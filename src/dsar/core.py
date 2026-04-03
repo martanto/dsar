@@ -1,16 +1,23 @@
 # Standard library imports
 import os
+import logging
+import warnings
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 # Third party imports
 import pandas as pd
 from obspy import Stream
-from typing_extensions import List, Self
+from typing_extensions import Self
 
-# Project imports
-from dsar.frequency_bands import FrequencyBands, default_bands
 from dsar.sds import SDS
 from dsar.utilities import trace_to_series
+
+# Project imports
+from dsar.frequency_bands import FrequencyBands, default
+
+
+logger = logging.getLogger(__name__)
 
 
 class DSAR:
@@ -47,9 +54,9 @@ class DSAR:
         input_dir: str,
         start_date: str,
         end_date: str,
-        directory_structure: str = "sds",
-        output_dir: str = None,
-        resample: str = None,
+        output_dir: str | None = None,
+        resample: str | None = None,
+        n_jobs: int = 1,
         verbose: bool = False,
         debug: bool = False,
     ):
@@ -63,17 +70,18 @@ class DSAR:
             input_dir (str): Path to the root SDS data directory.
             start_date (str): Start date in ``YYYY-MM-DD`` format.
             end_date (str): End date in ``YYYY-MM-DD`` format.
-            directory_structure (str, optional): Type of directory structure to use.
-                Defaults to ``"sds"``.
             output_dir (str, optional): Path to the output directory. Defaults to
                 ``<cwd>/output/dsar``.
             resample (str, optional): Pandas offset alias for the resampling interval.
                 Defaults to ``"10min"``.
+            n_jobs (int, optional): Number of worker threads for parallel date
+                processing. Defaults to ``1`` (sequential). Values greater than
+                ``1`` use a :class:`~concurrent.futures.ThreadPoolExecutor`.
             verbose (bool, optional): Enable verbose logging. Defaults to False.
             debug (bool, optional): Enable debug logging. Defaults to False.
 
         Raises:
-            AssertionError: If ``start_date`` is after ``end_date``.
+            ValueError: If ``start_date`` is after ``end_date`` or ``n_jobs`` is invalid.
             FileNotFoundError: If ``input_dir`` does not exist.
 
         Example:
@@ -86,23 +94,28 @@ class DSAR:
             ...     start_date="2025-01-01",
             ...     end_date="2025-01-08",
             ...     resample="10min",
+            ...     n_jobs=4,
             ...     verbose=True,
             ... )
         """
+        logging.basicConfig(
+            level=logging.DEBUG if debug else (logging.INFO if verbose else logging.WARNING)
+        )
+
         self.input_dir = input_dir
         self.start_date = start_date
         self.end_date = end_date
-        self.directory_structure = directory_structure.lower()
         self.output_dir = output_dir
         self.resample = resample if resample is not None else self.resample
-        self.station = station
-        self.channel = channel
-        self.network = network
-        self.location = location
+        self.station = station.upper()
+        self.channel = channel.upper()
+        self.network = network.upper()
+        self.location = location.upper()
 
         self.nslc = f"{self.network}.{self.station}.{self.location}.{self.channel}"
         self.start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
         self.end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
+
         self.sds = SDS(
             input_dir,
             network=self.network,
@@ -113,30 +126,32 @@ class DSAR:
             debug=debug,
         )
 
-        assert (
-            self.start_date_obj <= self.end_date_obj
-        ), f"\u274c start_date must be before end_date"
+        if self.start_date_obj > self.end_date_obj:
+            raise ValueError("start_date must be before or equal to end_date")
+        if n_jobs < 1:
+            raise ValueError("n_jobs must be greater than or equal to 1")
 
+        self.n_jobs = n_jobs
         self.dfs: dict[str, pd.DataFrame] = {}
 
-        self._first_label: str | None = None
-        self._first_bands: dict[str, List[float]] | None = None
+        self._lower_label: str | None = None
+        self._lower_bands: dict[str, list[float]] | None = None
 
-        self._second_label: str | None = None
-        self._second_bands: dict[str, List[float]] | None = None
+        self._upper_label: str | None = None
+        self._upper_bands: dict[str, list[float]] | None = None
 
     def __repr__(self) -> str:
         return (
             f"DSAR(input_dir={self.input_dir}, start_date={self.start_date}, "
-            f"end_date={self.end_date}, directory_structure={self.directory_structure}, "
-            f"resample={self.resample}, first_bands={self._first_bands}, "
-            f"second_bands={self._second_bands}, bands={self.bands})"
+            f"end_date={self.end_date}, resample={self.resample},"
+            f"lower_bands={self._lower_bands}, upper_bands={self._upper_bands}"
+            f", bands={self.bands})"
         )
 
-    def first_bands(
+    def lower_bands(
         self, name: str, first_freq: float, second_freq: float, third_freq: float
     ) -> Self:
-        """Set the first frequency band (numerator of the DSAR ratio).
+        """Set the lower frequency band (numerator of the DSAR ratio).
 
         Args:
             name (str): Label for the frequency band (e.g., ``"LF"``).
@@ -149,21 +164,21 @@ class DSAR:
             Self: The current DSAR instance, enabling method chaining.
 
         Raises:
-            AssertionError: If frequencies are not in non-decreasing order.
+            ValueError: If frequencies are not in non-decreasing order.
 
         Example:
-            >>> dsar.first_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
+            >>> dsar.lower_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
         """
-        self._first_bands = FrequencyBands(
+        self._lower_bands = FrequencyBands(
             name, first_freq, second_freq, third_freq
         ).to_dict()
-        self._first_label = name
+        self._lower_label = name
         return self
 
-    def second_bands(
+    def upper_bands(
         self, name: str, first_freq: float, second_freq: float, third_freq: float
     ) -> Self:
-        """Set the second frequency band (denominator of the DSAR ratio).
+        """Set the upper frequency band (denominator of the DSAR ratio).
 
         Args:
             name (str): Label for the frequency band (e.g., ``"HF"``).
@@ -176,36 +191,56 @@ class DSAR:
             Self: The current DSAR instance, enabling method chaining.
 
         Raises:
-            AssertionError: If frequencies are not in non-decreasing order.
+            ValueError: If frequencies are not in non-decreasing order.
 
         Example:
-            >>> dsar.second_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
+            >>> dsar.upper_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
         """
-        self._second_bands = FrequencyBands(
+        self._upper_bands = FrequencyBands(
             name, first_freq, second_freq, third_freq
         ).to_dict()
-        self._second_label = name
+        self._upper_label = name
         return self
+
+    def first_bands(
+        self, name: str, first_freq: float, second_freq: float, third_freq: float
+    ) -> Self:
+        """Deprecated alias for :meth:`lower_bands`."""
+        warnings.warn(
+            "first_bands() is deprecated and will be removed in a future release; "
+            "use lower_bands() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.lower_bands(name, first_freq, second_freq, third_freq)
+
+    def second_bands(
+        self, name: str, first_freq: float, second_freq: float, third_freq: float
+    ) -> Self:
+        """Deprecated alias for :meth:`upper_bands`."""
+        warnings.warn(
+            "second_bands() is deprecated and will be removed in a future release; "
+            "use upper_bands() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.upper_bands(name, first_freq, second_freq, third_freq)
 
     @property
     def bands(self) -> dict[str, list[float]]:
         """Return the active frequency bands used for DSAR computation.
 
-        Returns the custom bands if both :meth:`first_bands` and :meth:`second_bands`
+        Returns the custom bands if both :meth:`lower_bands` and :meth:`upper_bands`
         have been set; otherwise returns the default LF/HF bands.
 
         Returns:
             dict[str, list[float]]: Mapping of band name to a frequency triplet,
                 e.g. ``{"LF": [0.1, 4.5, 8.0], "HF": [0.1, 8.0, 16.0]}``.
         """
-        bands: dict[str, list[float]] = default_bands
+        if self._lower_bands is not None and self._upper_bands is not None:
+            return {**self._lower_bands, **self._upper_bands}
 
-        if self._first_bands is not None and self._second_bands is not None:
-            bands = {}
-            bands.update(self._first_bands)
-            bands.update(self._second_bands)
-
-        return bands
+        return dict(default)
 
     @staticmethod
     def process(stream: Stream, band_frequencies: list[float]) -> Stream:
@@ -216,7 +251,7 @@ class DSAR:
 
         Args:
             stream (Stream): ObsPy Stream to process.
-            band_frequencies (list[float]): List of exactly three frequencies in Hz:
+            band_frequencies (list[float]): list of exactly three frequencies in Hz:
                 ``[high_pass, bandpass_low, bandpass_high]``.
                 Example: ``[0.1, 8.0, 16.0]``.
 
@@ -224,22 +259,89 @@ class DSAR:
             Stream: Processed ObsPy Stream containing displacement data.
 
         Raises:
-            AssertionError: If ``band_frequencies`` does not contain exactly 3 values.
+            ValueError: If ``band_frequencies`` does not contain exactly 3 values.
 
         Example:
             >>> processed = DSAR.process(stream, [0.1, 8.0, 16.0])
         """
-        assert len(band_frequencies) == 3, (
-            f"\u274c band_frequencies must contain exactly 3 values. "
-            f"Example: [0.1, 8.0, 16.0]"
-        )
-        stream.merge(fill_value=0)
+        if len(band_frequencies) != 3:
+            raise ValueError(
+                "band_frequencies must contain exactly 3 values. "
+                "Example: [0.1, 8.0, 16.0]"
+            )
+        stream.merge(fill_value="interpolate")
         stream.detrend("demean")
         stream.filter("highpass", freq=band_frequencies[0])
         stream.integrate()
         stream.filter("highpass", freq=band_frequencies[1])
         stream.filter("lowpass", freq=band_frequencies[2])
         return stream
+
+    def _labels(self) -> tuple[str, str]:
+        first_label = "LF" if self._lower_label is None else self._lower_label
+        second_label = "HF" if self._upper_label is None else self._upper_label
+        return first_label, second_label
+
+    def _calculate_results(self, dfs: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+        first_label, second_label = self._labels()
+        result: dict[str, pd.DataFrame] = {}
+
+        for station, df in dfs.items():
+            if first_label not in df.columns or second_label not in df.columns:
+                raise KeyError(
+                    f"Missing expected band columns in {station}: "
+                    f"{first_label}, {second_label}"
+                )
+
+            station_df = df.copy()
+            ratio_name = f"DSAR_{self.resample}"
+
+            station_df[ratio_name] = station_df[first_label] / station_df[second_label]
+            station_df["DSAR_6h_median"] = station_df[ratio_name].rolling(
+                "6h", center=True
+            ).median()
+            station_df["DSAR_24h_median"] = station_df[ratio_name].rolling(
+                "24h", center=True
+            ).median()
+
+            station_df = station_df.dropna()
+            station_df = station_df.loc[~station_df.index.duplicated(), :]
+            station_df = station_df.interpolate("time").interpolate()
+
+            result[station] = station_df
+
+        return result
+
+    def _save_results(
+        self, dfs: dict[str, pd.DataFrame], date_str: str, output_directory: str
+    ) -> str | None:
+        if not dfs:
+            logger.warning("%s :: Nothing to save: no station data", date_str)
+            return None
+
+        last_saved: str | None = None
+        for station, df in dfs.items():
+            if df.empty:
+                logger.warning("%s :: Not saved. Not enough data for %s", date_str, station)
+                continue
+
+            date: str = str(df.first_valid_index()).split(" ")[0]
+            csv_directory = os.path.join(output_directory, station, self.resample)
+            os.makedirs(csv_directory, exist_ok=True)
+
+            csv_file = os.path.join(csv_directory, f"{station}_{date}.csv")
+            df.to_csv(csv_file, index=True)
+            logger.info("%s :: Saved to %s", date_str, csv_file)
+            last_saved = csv_file
+
+        return last_saved
+
+    def _output_directory(self) -> str:
+        return (
+            os.path.join(os.getcwd(), "output", "dsar")
+            if self.output_dir is None
+            else self.output_dir
+        )
 
     def calculate(self, dfs: dict[str, pd.DataFrame]) -> Self:
         """Calculate DSAR values and rolling median smoothings.
@@ -258,26 +360,7 @@ class DSAR:
         Example:
             >>> dsar.calculate(dfs={"VG.OJN.00.EHZ": df})
         """
-        first_label = "LF" if self._first_label is None else self._first_label
-        second_label = "HF" if self._second_label is None else self._second_label
-
-        for station, df in dfs.items():
-            default_name: str = "DSAR_{}".format(self.resample)
-
-            dfs[station][default_name] = df[first_label] / df[second_label]
-            dfs[station]["DSAR_6h_median"] = (
-                df[default_name].rolling("6h", center=True).median()
-            )
-            dfs[station]["DSAR_24h_median"] = (
-                df[default_name].rolling("24h", center=True).median()
-            )
-
-            dfs[station] = dfs[station].dropna()
-            dfs[station] = dfs[station].loc[~dfs[station].index.duplicated(), :]
-            dfs[station] = dfs[station].interpolate("time").interpolate()
-
-        self.dfs = dfs
-
+        self.dfs = self._calculate_results(dfs)
         return self
 
     def save(self, date_str: str) -> str | None:
@@ -287,44 +370,65 @@ class DSAR:
             date_str (str): Date string in ``YYYY-MM-DD`` format, used for log messages.
 
         Returns:
-            str | None: Path to the saved CSV file if successful; a warning message
-                string if the DataFrame is empty; or ``None`` if ``self.dfs`` is empty.
+            str | None: Path to the last saved CSV file if successful, or ``None``
+                if ``self.dfs`` is empty or all DataFrames are empty.
 
         Example:
             >>> path = dsar.save("2025-01-01")
         """
-        output_directory = self.output_dir
+        output_directory = self._output_directory()
+        os.makedirs(output_directory, exist_ok=True)
+        return self._save_results(self.dfs, date_str, output_directory)
 
-        if output_directory is None:
-            output_directory: str = os.path.join(os.getcwd(), "output", "dsar")
-            os.makedirs(output_directory, exist_ok=True)
+    def _process_date(self, date_obj) -> str | None:
+        """Process a single date: load stream, compute DSAR, and save CSV.
 
-        for station, df in self.dfs.items():
-            if not df.empty:
-                date: str = str(df.first_valid_index()).split(" ")[0]
+        This method is designed to be called concurrently from :meth:`run`. It
+        operates entirely on local state — it does not read or write ``self.dfs`` —
+        so it is safe to run in parallel across multiple dates.
 
-                csv_directory: str = os.path.join(
-                    output_directory, station, self.resample
+        Args:
+            date_obj: A pandas ``Timestamp`` representing the date to process.
+
+        Returns:
+            str | None: Path to the saved CSV file, or ``None`` if no data was found
+                or the result was empty.
+        """
+        dfs: dict[str, pd.DataFrame] = {}
+        date_str: str = date_obj.strftime("%Y-%m-%d")
+
+        logger.info("==============================")
+        logger.info("%s :: Getting stream", date_str)
+
+        stream: Stream = self.sds.get(datetime.strptime(date_str, "%Y-%m-%d"))
+
+        if stream.count() == 0:
+            logger.info("%s :: No trace(s) found. Skipping", date_str)
+            return None
+
+        logger.info("%s :: Found %s trace(s) in stream", date_str, stream.count())
+        for trace in stream:
+            dfs[trace.id] = pd.DataFrame()
+
+        for band_name, band_frequencies in self.bands.items():
+            for trace in self.process(stream.copy(), band_frequencies):
+                logger.debug(
+                    "%s :: Calculating %s for band %s", date_str, trace.id, band_name
                 )
-                os.makedirs(csv_directory, exist_ok=True)
+                series = trace_to_series(trace=trace).resample(self.resample).median()
+                dfs[trace.id][band_name] = series.to_frame().sort_index()
 
-                csv_file: str = os.path.join(csv_directory, f"{station}_{date}.csv")
-
-                df.to_csv(csv_file, index=True)
-                print(f"\U0001f4be {date_str} : Saved to {csv_file}")
-
-                return csv_file
-
-            return f"\u26a0\ufe0f {date_str} : Not saved. Not enough data for {station}"
-
-        return None
+        result = self._calculate_results(dfs)
+        output_directory = self._output_directory()
+        os.makedirs(output_directory, exist_ok=True)
+        return self._save_results(result, date_str, output_directory)
 
     def run(self) -> None:
         """Run the full DSAR pipeline over the configured date range.
 
-        Iterates day by day from ``start_date`` to ``end_date``, loading seismic
-        streams from the SDS archive, processing each frequency band, computing
-        DSAR ratios, and saving daily CSV files.
+        When ``n_jobs=1`` (the default), dates are processed sequentially.
+        When ``n_jobs > 1``, dates are dispatched to a
+        :class:`~concurrent.futures.ThreadPoolExecutor` for parallel processing.
 
         Example:
             >>> dsar.run()
@@ -333,34 +437,9 @@ class DSAR:
             self.start_date, self.end_date, freq="D"
         )
 
-        for date_obj in dates:
-            dfs: dict[str, pd.DataFrame] = {}
-            date_str: str = date_obj.strftime("%Y-%m-%d")
-
-            print(f"==============================")
-            print(f"\u231b {date_str} : Get stream for {date_str}")
-
-            stream: Stream = self.sds.get(datetime.strptime(date_str, "%Y-%m-%d"))
-
-            if stream.count() > 0:
-                print(f"\u2705 {date_str} : Found {stream.count()} trace(s) in stream")
-                for trace in stream:
-                    dfs[trace.id]: pd.DataFrame = pd.DataFrame()
-
-                for band_name, band_frequencies in self.bands.items():
-                    for trace in self.process(stream.copy(), band_frequencies):
-                        print(
-                            f"\U0001f9ee {date_str} : Calculating {trace.id} for {band_name}"
-                        )
-                        series = (
-                            trace_to_series(trace=trace)
-                            .resample(self.resample)
-                            .median()
-                        )
-                        dfs[trace.id][
-                            band_name
-                        ]: pd.DataFrame = series.to_frame().sort_index()
-
-                self.calculate(dfs=dfs).save(date_str=date_str)
-            else:
-                print(f"\u274c {date_str} : No trace(s) found. Skipping")
+        if self.n_jobs == 1:
+            for date_obj in dates:
+                self._process_date(date_obj)
+        else:
+            with ThreadPoolExecutor(max_workers=self.n_jobs) as executor:
+                executor.map(self._process_date, dates)

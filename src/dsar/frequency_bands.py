@@ -9,7 +9,7 @@ class FrequencyBands:
             ``{"LF": [0.1, 4.5, 8.0]}``.
         default_second_bands (dict[str, list[float]]): Default HF band
             ``{"HF": [0.1, 8.0, 16.0]}``.
-        default_bands (dict[str, list[float]]): Combined default LF and HF bands.
+        default (dict[str, list[float]]): Combined default LF and HF bands.
 
     Example:
         >>> band = FrequencyBands("LF", 0.1, 4.5, 8.0)
@@ -21,9 +21,7 @@ class FrequencyBands:
 
     default_second_bands: dict[str, list[float]] = {"HF": [0.1, 8.0, 16.0]}
 
-    default_bands: dict[str, list[float]] = {}
-    default_bands.update(default_first_bands)
-    default_bands.update(default_second_bands)
+    default: dict[str, list[float]] = {**default_first_bands, **default_second_bands}
 
     def __init__(
         self,
@@ -44,7 +42,7 @@ class FrequencyBands:
                 filter in Hz.
 
         Raises:
-            AssertionError: If frequencies are not in non-decreasing order
+            ValueError: If frequencies are not in non-decreasing order
                 (``first_frequency <= second_frequency <= third_frequency``).
 
         Example:
@@ -55,13 +53,12 @@ class FrequencyBands:
         self.second_frequency = second_frequency
         self.third_frequency = third_frequency
 
-        assert (
-            self.first_frequency <= self.second_frequency <= self.third_frequency
-        ), (
-            f"\u274c Frequencies must satisfy "
-            f"first_frequency <= second_frequency <= third_frequency. "
-            f"Got {first_frequency}, {second_frequency}, {third_frequency}."
-        )
+        if not self.first_frequency <= self.second_frequency <= self.third_frequency:
+            raise ValueError(
+                "Frequencies must satisfy "
+                "first_frequency <= second_frequency <= third_frequency. "
+                f"Got {first_frequency}, {second_frequency}, {third_frequency}."
+            )
 
     def __repr__(self) -> str:
         """Return a string representation of the FrequencyBands instance.
@@ -100,4 +97,4 @@ class FrequencyBands:
         }
 
 
-default_bands: dict[str, list[float]] = FrequencyBands.default_bands
+default: dict[str, list[float]] = FrequencyBands.default

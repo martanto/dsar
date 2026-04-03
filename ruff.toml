@@ -1,0 +1,63 @@
+# Ruff configuration file
+# https://docs.astral.sh/ruff/
+
+target-version = "py310"
+line-length = 88
+cache-dir = "./.cache/ruff"
+extend-exclude = [
+    ".venv",
+    ".cache",
+    "*.md",
+    ".claude",
+    "output*",
+    "*.ipynb",
+    "logs",
+    "*.log",
+    "tests",
+    "test*",
+    "changelogs"
+]
+
+[lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+    "NPY",   # NumPy-specific rules
+    "PD",    # pandas-vet
+]
+ignore = [
+    "PLR0913", # Too many arguments
+    "E402",
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+    "B904",
+    "SIM108",  # Use ternary operator
+    "PLR0915", # Too many statements
+]
+
+[lint.pydoclint]
+ignore-one-line-docstrings = true
+
+[lint.pydocstyle]
+convention = "google"
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"] # Unused imports
+"tests/*" = ["PLR2004", "S101"] # Magic values and asserts are fine in tests
+"scripts/*" = ["T201"] # Allow print in scripts
+
+[lint.isort]
+length-sort = true
+known-first-party = ["dsar"]  # Replace with your package name
+combine-as-imports = true
+force-single-line = false
+lines-after-imports = 2
+#import-heading.standard-library = "Standard Library:"
+#import-heading.third-party = "External Packages:"
+#import-heading.first-party = "Projects Imports:"
