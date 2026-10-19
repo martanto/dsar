@@ -100,6 +100,7 @@ dsar = DSAR(
 | `location` | `str` | required | Location code (e.g. `"00"`) |
 | `resample` | `str` | `"10min"` | Pandas offset alias for the resampling interval |
 | `output_dir` | `str` | `None` | Custom output directory; defaults to `<cwd>/output/dsar` |
+| `n_jobs` | `int` | `1` | Number of worker threads used by `run()` (`>1` runs dates in parallel) |
 | `verbose` | `bool` | `False` | Print detailed stream information |
 | `debug` | `bool` | `False` | Print debug-level path and trace information |
 
@@ -109,15 +110,15 @@ The default bands are **LF** `[0.1, 4.5, 8.0] Hz` and **HF** `[0.1, 8.0, 16.0] H
 Each band is defined by three frequencies `[high_pass, bandpass_low, bandpass_high]`.
 
 ```python
-dsar.first_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
-dsar.second_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
+dsar.lower_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
+dsar.upper_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
 ```
 
-`first_bands` is the **numerator** and `second_bands` is the **denominator** of the DSAR
+`lower_bands` is the **numerator** and `upper_bands` is the **denominator** of the DSAR
 ratio. Both methods return `self`, so they can be chained:
 
 ```python
-dsar.first_bands("LF", 0.1, 4.5, 8.0).second_bands("HF", 0.1, 8.0, 16.0)
+dsar.lower_bands("LF", 0.1, 4.5, 8.0).upper_bands("HF", 0.1, 8.0, 16.0)
 ```
 
 #### Run
@@ -129,6 +130,9 @@ dsar.run()
 `run()` iterates day by day across the date range, loads each day's miniSEED data from the
 SDS archive, processes both frequency bands, computes the DSAR ratio, and saves the result
 as a daily CSV.
+
+When `n_jobs=1`, processing is sequential. When `n_jobs>1`, dates are processed with a
+`ThreadPoolExecutor`.
 
 **Output files:**
 ```
@@ -196,6 +200,9 @@ print(df.head())
 print(df.columns.tolist())
 ```
 
+`plot.df` rebuilds from the daily CSV files on each access. Use `plot.refresh_df()` when
+you want an explicit refresh call.
+
 #### Plot
 
 ```python
@@ -260,6 +267,19 @@ df = get_combined_csv(
 
 ---
 
+## Behavior changes in v2.1.x
+
+- Runtime validation now raises explicit exceptions (for example, `ValueError`) instead
+  of relying on `assert`.
+- `PlotDsar.save()` now returns the saved file path (`str`) and raises an exception on
+  save failure.
+- `PlotDsar.df` no longer caches values between accesses; it always rebuilds from current
+  daily CSV files.
+- Band configuration API now uses `lower_bands()` / `upper_bands()`. Legacy
+  `first_bands()` / `second_bands()` still work but emit `DeprecationWarning`.
+
+---
+
 ## Complete example
 
 ```python
@@ -276,8 +296,8 @@ dsar = DSAR(
     location="00",
     verbose=True,
 )
-dsar.first_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
-dsar.second_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
+dsar.lower_bands(name="LF", first_freq=0.1, second_freq=4.5, third_freq=8.0)
+dsar.upper_bands(name="HF", first_freq=0.1, second_freq=8.0, third_freq=16.0)
 dsar.run()
 
 # --- Plot ---

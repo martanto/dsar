@@ -1,11 +1,15 @@
 # Standard library imports
 import os
-from datetime import datetime
-from pathlib import Path
+import logging
 from typing import Any
+from pathlib import Path
+from datetime import datetime
 
 # Third party imports
-from obspy import ObsPyReadingError, Stream, Trace, read
+from obspy import Trace, Stream, ObsPyReadingError, read
+
+
+logger = logging.getLogger(__name__)
 
 
 class SDS:
@@ -78,7 +82,7 @@ class SDS:
         self.files: list[dict[str, Any]] = []
 
         if self.verbose:
-            print(f"SDS initialized: {self.nslc} from {self.sds_dir}")
+            logger.info("SDS initialized: %s from %s", self.nslc, self.sds_dir)
 
     def get_filepath(self, date: datetime) -> str:
         """Construct SDS filepath for a specific date.
@@ -111,7 +115,7 @@ class SDS:
         )
 
         if self.debug:
-            print(f"Data directory: {data_dir}")
+            logger.debug("Data directory: %s", data_dir)
 
         # Construct filename
         filename = f"{self.nslc}.D.{year}.{julian_day}"
@@ -140,34 +144,32 @@ class SDS:
             # Read miniSEED file
             stream = read(filepath, format="MSEED")
 
-            # Log file metadata
-            file_metadata = {
-                "date": date_str,
-                "filepath": filepath,
-                "n_traces": len(stream),
-                "loaded_at": datetime.now().isoformat(),
-            }
-
             # Merge traces if there are gaps (interpolate missing data)
             stream = stream.merge(fill_value="interpolate")
 
             # Track successfully loaded files
-            self.files.append(file_metadata)
+            self.files.append({
+                "date": date_str,
+                "filepath": filepath,
+                "n_traces": len(stream),
+                "loaded_at": datetime.now().isoformat(),
+            })
 
             if self.debug:
-                print(
-                    f"{date_str} :: Loaded {len(stream)} trace(s) from {filepath}"
+                logger.debug(
+                    "%s :: Loaded %s trace(s) from %s", date_str, len(stream), filepath
                 )
 
             return stream
 
         except ObsPyReadingError as e:
-            print(f"{date_str} :: Failed to read miniSEED file: {filepath}")
-            print(f"{date_str} :: Error: {e}")
+            logger.warning(
+                "%s :: Failed to read miniSEED file %s: %s", date_str, filepath, e
+            )
             return Stream()
 
-        except Exception as e:
-            print(f"{date_str} :: Unexpected error loading {filepath}: {e}")
+        except OSError as e:
+            logger.warning("%s :: Filesystem error loading %s: %s", date_str, filepath, e)
             return Stream()
 
     def get(self, date: datetime) -> Stream:
@@ -199,25 +201,27 @@ class SDS:
         # Check if file exists
         if not os.path.exists(filepath):
             if self.debug:
-                print(f"{date_str} :: miniSEED file not found: {filepath}")
+                logger.debug("%s :: miniSEED file not found: %s", date_str, filepath)
             return Stream()
 
         # Load stream from file
         stream = self.load_stream(filepath, date_str)
 
         # Log results
-        if len(stream) == 0:
-            print(f"{date_str} :: No traces found in {filepath}")
-        elif self.verbose:
+        if self.verbose and len(stream) > 0:
             trace: Trace = stream[0]
             n_samples = len(trace.data)
             sampling_rate = trace.stats.sampling_rate
             duration = n_samples / sampling_rate if sampling_rate > 0 else 0
 
-            print(f"{date_str} :: Stream loaded successfully")
-            print(
-                f"{date_str} :: {len(stream)} trace(s), {n_samples} samples, "
-                f"{duration:.1f}s duration @ {sampling_rate}Hz"
+            logger.info("%s :: Stream loaded successfully", date_str)
+            logger.info(
+                "%s :: %s trace(s), %s samples, %.1fs duration @ %sHz",
+                date_str,
+                len(stream),
+                n_samples,
+                duration,
+                sampling_rate,
             )
 
         return stream

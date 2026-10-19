@@ -1,12 +1,17 @@
 # Standard library imports
 import os
-from datetime import datetime
+import logging
 from glob import glob
+from datetime import datetime
+
+import pandas as pd
 
 # Third party imports
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
-import pandas as pd
+
+
+logger = logging.getLogger(__name__)
 
 
 class PlotDsar:
@@ -31,10 +36,10 @@ class PlotDsar:
         end_date: str,
         station: str,
         channel: str,
-        dsar_dir: str = None,
-        figures_dir: str = None,
         network: str = "VG",
         location: str = "00",
+        dsar_dir: str | None = None,
+        figures_dir: str | None = None,
         resample: str = "10min",
     ):
         """Initialize the DSAR plotter.
@@ -54,38 +59,35 @@ class PlotDsar:
                 interval. Defaults to ``"10min"``.
 
         Raises:
-            AssertionError: If ``start_date`` is after ``end_date``.
+            ValueError: If ``start_date`` is after ``end_date``.
         """
         self.start_date = start_date
         self.end_date = end_date
-        self.station = station
-        self.channel = channel
-        self.network = network
-        self.location = location
+        self.station = station.upper()
+        self.channel = channel.upper()
+        self.network = network.upper()
+        self.location = location.upper()
         self.resample = resample
 
-        self.nslc = f"{network}.{station}.{location}.{channel}"
+        self.nslc = f"{self.network}.{self.station}.{self.location}.{self.channel}"
 
         self.start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
         self.end_date_obj = datetime.strptime(end_date, "%Y-%m-%d")
 
-        assert (
-            self.start_date_obj <= self.end_date_obj
-        ), f"\u274c start_date must be before end_date"
+        if self.start_date_obj > self.end_date_obj:
+            raise ValueError("start_date must be before or equal to end_date")
 
-        self.dsar_dir = dsar_dir
-        if dsar_dir is None:
-            self.dsar_dir: str = os.path.join(os.getcwd(), "output", "dsar")
+        self.dsar_dir: str = (
+            os.path.join(os.getcwd(), "output", "dsar")
+            if dsar_dir is None
+            else dsar_dir
+        )
 
         if figures_dir is None:
             figures_dir: str = os.path.join(os.getcwd(), "output", "figures", "dsar")
         self.figures_dir = figures_dir
 
-        self.y_min = None
-        self.y_max = None
-
-    @property
-    def df(self) -> pd.DataFrame:
+    def _build_df(self) -> pd.DataFrame:
         """Load, combine, and return all daily DSAR CSV files as a single DataFrame.
 
         Reads all ``*.csv`` files from the DSAR output directory for the configured
@@ -97,7 +99,7 @@ class PlotDsar:
                 containing DSAR values and rolling median columns.
 
         Raises:
-            AssertionError: If no CSV files are found in the expected directory.
+            FileNotFoundError: If no CSV files are found in the expected directory.
 
         Example:
             >>> df = plot.df
@@ -108,7 +110,8 @@ class PlotDsar:
 
         csv_files: list[str] = glob(os.path.join(csv_path, "*.csv"))
 
-        assert len(csv_files) > 0, f"\u274c No CSV files found in {csv_path}."
+        if len(csv_files) == 0:
+            raise FileNotFoundError(f"No CSV files found in {csv_path}.")
 
         for csv in csv_files:
             df = pd.read_csv(csv)
@@ -125,14 +128,23 @@ class PlotDsar:
         combined_csv_file: str = os.path.join(
             self.dsar_dir,
             self.nslc,
-            "combined_{}_{}.csv".format(self.resample, self.nslc),
+            f"combined_{self.resample}_{self.nslc}.csv",
         )
 
         big_df.to_csv(combined_csv_file, index=True)
-        print(f"\u2705 Combined CSV saved to: {combined_csv_file}")
+        logger.info("Combined CSV saved to: %s", combined_csv_file)
         return big_df
 
-    def save(self, figure: plt.Figure, file_type: str = "png") -> bool:
+    @property
+    def df(self) -> pd.DataFrame:
+        """Load and combine daily CSV files each time this property is accessed."""
+        return self._build_df()
+
+    def refresh_df(self) -> pd.DataFrame:
+        """Explicitly rebuild and return the combined DataFrame."""
+        return self._build_df()
+
+    def save(self, figure: plt.Figure, file_type: str = "png") -> str:
         """Save a matplotlib figure to disk.
 
         Args:
@@ -141,7 +153,7 @@ class PlotDsar:
                 ``"jpg"``). Defaults to ``"png"``.
 
         Returns:
-            bool: ``True`` if the figure was saved successfully, ``False`` otherwise.
+            str: Full path to the saved figure file.
 
         Example:
             >>> plot.save(fig, file_type="jpg")
@@ -153,20 +165,16 @@ class PlotDsar:
             f"{self.nslc}_{self.resample}_{self.start_date}-{self.end_date}.{file_type}"
         )
         save_file = os.path.join(save_path, filename)
-        try:
-            figure.savefig(save_file, dpi=300)
-            print(f"\U0001F4F7 Figure saved to: {save_file}")
-            return True
-        except Exception as e:
-            print(e)
-            return False
+        figure.savefig(save_file, dpi=300)
+        logger.info("Figure saved to: %s", save_file)
+        return save_file
 
     def plot(
         self,
         interval_day: int = 3,
-        title: str = None,
-        y_min: float = None,
-        y_max: float = None,
+        title: str | None = None,
+        y_min: float | None = None,
+        y_max: float | None = None,
         save: bool = True,
         file_type: str = "png",
     ) -> plt.Figure:
@@ -192,7 +200,7 @@ class PlotDsar:
             plt.Figure: The generated matplotlib Figure.
 
         Raises:
-            AssertionError: If the combined DataFrame is empty.
+            ValueError: If the combined DataFrame is empty.
 
         Example:
             >>> fig = plot.plot(
@@ -201,17 +209,18 @@ class PlotDsar:
         """
         df = self.df
 
-        assert not df.empty, f"\u274c DataFrame is empty"
+        if df.empty:
+            raise ValueError("DataFrame is empty")
 
         fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(12, 3), layout="constrained")
 
         axs.scatter(
             df.index,
-            df["DSAR_{}".format(self.resample)],
+            df[f"DSAR_{self.resample}"],
             c="k",
             alpha=0.3,
             s=10,
-            label="10min",
+            label=self.resample,
         )
 
         axs.plot(
@@ -221,7 +230,10 @@ class PlotDsar:
 
         axs.xaxis.set_major_locator(mdates.DayLocator(interval=interval_day))
 
-        axs.set_xlim(df.first_valid_index(), df.last_valid_index())
+        axs.set_xlim(
+            df.first_valid_index(),  # ty:ignore[invalid-argument-type]
+            df.last_valid_index(),  # ty:ignore[invalid-argument-type]
+        )
 
         if (y_min is not None) and (y_max is not None):
             axs.set_ylim(y_min, y_max)
@@ -231,7 +243,7 @@ class PlotDsar:
             xy=(0.01, 0.92),
             xycoords="axes fraction",
             fontsize="8",
-            bbox=dict(facecolor="white", alpha=0.5),
+            bbox={"facecolor": "white", "alpha": 0.5},
         )
 
         axs.legend(loc="upper right", fontsize="8", ncol=4)

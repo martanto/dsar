@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 
-from dsar.core import DSAR
-from dsar.frequency_bands import FrequencyBands
-from dsar.plot import PlotDsar
-from dsar.sds import SDS
 from importlib.metadata import version
+
+from dsar.sds import SDS
+from dsar.core import DSAR
+from dsar.plot import PlotDsar
+from dsar.frequency_bands import FrequencyBands
+
 
 __version__ = version("dsar")
 __author__ = "Martanto"

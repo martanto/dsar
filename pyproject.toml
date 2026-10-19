@@ -1,29 +1,23 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["uv_build"]
+build-backend = "uv_build"
 
 [project]
 name =  "dsar"
-version = "2.0.1"
+version = "2.1.0"
 authors = [
     {name = "Martanto", email = "martanto@live.com"},
     {name = "Corentin Caudron", email = "corentin@ulb.be"},
 ]
-description = "Calculating Displacement Seismic Amplitude Ratio (DSAR) Value"
+description = "Calculating Displacement Seismic Amplitude Ratio (DSAR)"
 readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["seismic", "volcano", "volcanology", "dsar"]
 requires-python = ">=3.10"
 dependencies = [
-    "openpyxl>=3.1.5",
-    "pandas>=2.2.0",
-    "numpy>=2.0.0",
-    "matplotlib>=3.9.0",
-    "python-slugify>=8.0.0",
-    "ipykernel>=7.2.0",
-    "setuptools==80.8.0",
     "obspy>=1.4.2",
-    "black>=26.1.0",
+    "pandas>=2.0,<3.1",
+    "matplotlib>=3.9.0",
     "typing_extensions>=4.0.0",
 ]
 classifiers = [
@@ -36,85 +30,21 @@ classifiers = [
 
 [dependency-groups]
 dev = [
-    "black>=25.12.0",
-    "ruff>=0.15.0",
-    "isort>=5.12.0",
-    "ipykernel>=7.1.0",
-    "pyrefly>=0.51.0",
+    "uv-build",
+    "ruff",
+    "ty",
+    "ipykernel",
+    "notebook",
+    "pytest",
 ]
 
 [tool.pydocstyle]
 convention = "google"
 add-ignore = ["D100", "D104"]
 
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-dir]
-dsar = "src/dsar"
-
 [tool.uv]
-cache-dir = "./.uv_cache"
-
-
-[tool.black]
-line-length = 88
-target-version = ['py310', 'py311', 'py312']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.venv
-  | \.claude
-  | \.uv_cache
-  | examples
-  | output
-  | _build
-  | build
-  | dist
-  | venv
-  | \.env
-  | \.flake8
-)/
-'''
-
-[tool.ruff]
-target-version = "py310"
-line-length = 88
-lint.select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
-]
-lint.ignore = [
-    "E402",
-    "E501",  # line too long, handled by black
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-    "B904",
-]
-
-[tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]
-
-[tool.isort]
-profile = "black"
-src_paths = ["src"]
-import_heading_stdlib = "Standard library imports"
-import_heading_thirdparty = "Third party imports"
-import_heading_firstparty = "Project imports"
-known_first_party = []
-
-[tool.pyrefly]
-python-version = "3.10.0"
-ignore-missing-imports = ["obspy.*"]
-
-[tool.pyrefly.errors]
-bad-assignment = false
+cache-dir = "./.cache"
+build-constraint-dependencies = ["setuptools==80.8.0"]
 
 [project.urls]
 Homepage = "https://github.com/martanto/dsar"
